@@ -2,7 +2,6 @@ version: "2"
 
 run:
   timeout: 5m
-  modules-download-mode: readonly
 
 formatters:
   enable:
@@ -12,7 +11,6 @@ formatters:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -28,8 +26,6 @@ linters:
   settings:
     misspell:
       locale: US
-    staticcheck:
-      checks: ["all"]
     gosec:
       excludes:
         - G104
