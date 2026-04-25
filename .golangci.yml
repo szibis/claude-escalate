@@ -20,7 +20,6 @@ linters:
     - gosec
     - misspell
     - nolintlint
-    - stylecheck
     - unparam
     - whitespace
   settings:
@@ -28,15 +27,11 @@ linters:
       locale: US
     staticcheck:
       checks: ["all"]
-    stylecheck:
-      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1005"]
     gosec:
       excludes:
         - G104
         - G304
 
 issues:
-  exclude-files:
-    - _test\.go
   max-issues-per-linter: 50
   max-same-issues: 10
