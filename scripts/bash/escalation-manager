@@ -463,7 +463,15 @@ handle_auto_effort() {
     local classification=$(classify_task_type_effort "$PROMPT")
     local task_type=$(echo "$classification" | cut -d'|' -f1)
     local new_effort=$(echo "$classification" | cut -d'|' -f2)
-    local new_model=$(echo "$classification" | cut -d'|' -f3)
+    local routing_directive=$(echo "$classification" | cut -d'|' -f3)
+
+    # Map routing directive to actual model
+    local new_model="$routing_directive"
+    case "$routing_directive" in
+        "opusplan")  new_model="claude-opus-4-6" ;;
+        "claude-opus-4-6"|"claude-sonnet-4-6"|"claude-haiku-4-5-20251001") ;;
+        *)           new_model="claude-sonnet-4-6" ;;
+    esac
 
     # Only update if changed
     if [ "$new_effort" != "$current_effort" ] || [ "$new_model" != "$current_model" ]; then
@@ -481,9 +489,11 @@ handle_auto_effort() {
 
             local model_label=""
             if [ "$new_model" = "claude-haiku-4-5-20251001" ]; then
-                model_label="Haiku (~8x cheaper)"
+                model_label="Haiku (cost-optimized, ~8x cheaper)"
+            elif [ "$new_model" = "claude-opus-4-6" ]; then
+                model_label="Opus (high capability)"
             else
-                model_label="opusplan"
+                model_label="Sonnet (balanced)"
             fi
 
             local route_source=""
