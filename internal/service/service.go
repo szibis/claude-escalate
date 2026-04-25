@@ -38,6 +38,15 @@ func (s *Service) Start(addr string) error {
 	mux.HandleFunc("/api/stats", s.handleStats)
 	mux.HandleFunc("/api/health", s.handleHealth)
 
+	// Validation endpoints
+	mux.HandleFunc("/api/validate", s.handleValidate)
+	mux.HandleFunc("/api/validation/metrics", s.handleValidationMetrics)
+	mux.HandleFunc("/api/validation/stats", s.handleValidationStats)
+	mux.HandleFunc("/api/metrics/hook", s.handleHookMetrics)
+
+	// Statusline integration endpoint (for barista, plugins, etc.)
+	mux.HandleFunc("/api/statusline", s.handleStatusline)
+
 	// Dashboard endpoints
 	mux.HandleFunc("/", s.handleDashboard)
 
@@ -249,6 +258,213 @@ func (s *Service) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	// Dashboard HTML would be served here (same as dashboard package)
 	w.Write([]byte(dashboardHTML))
+}
+
+// handleValidate accepts actual token metrics and compares with estimates.
+func (s *Service) handleValidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ActualInputTokens         int     `json:"actual_input_tokens"`
+		ActualCacheCreationTokens int     `json:"actual_cache_creation_tokens"`
+		ActualCacheReadTokens     int     `json:"actual_cache_read_tokens"`
+		ActualOutputTokens        int     `json:"actual_output_tokens"`
+		ActualTotalTokens         int     `json:"actual_total_tokens"`
+		ActualCost                float64 `json:"actual_cost"`
+		ValidationID              int64   `json:"validation_id"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	// Create validation metric record
+	metric := store.ValidationMetric{
+		ActualInputTokens:    req.ActualInputTokens,
+		ActualOutputTokens:   req.ActualOutputTokens,
+		ActualTotalTokens:    req.ActualTotalTokens,
+		ActualCost:           req.ActualCost,
+		Validated:            true,
+	}
+
+	if err := s.db.LogValidationMetric(metric); err != nil {
+		http.Error(w, "failed to log metric", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":         true,
+		"validation_id":   metric.ID,
+		"tokens_recorded": metric.ActualTotalTokens,
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// handleValidationMetrics returns recent validation metrics.
+func (s *Service) handleValidationMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	metrics, err := s.db.GetValidationMetrics(100)
+	if err != nil {
+		http.Error(w, "failed to get metrics", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"metrics": metrics,
+		"count":   len(metrics),
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// handleValidationStats returns validation statistics summary.
+func (s *Service) handleValidationStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	stats, err := s.db.GetValidationStats()
+	if err != nil {
+		http.Error(w, "failed to get stats", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// handleStatusline returns current metrics in statusline-friendly JSON format.
+// Any statusline plugin (barista, custom plugins, etc.) can query this endpoint
+// to get live escalation and validation statistics for display.
+func (s *Service) handleStatusline(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get current model from settings
+	settings, _ := config.ReadClaudeSettings()
+	currentModel := "unknown"
+	effortLevel := "medium"
+	if settings != nil {
+		currentModel = modelShortName(settings.Model)
+		effortLevel = settings.EffortLevel
+	}
+
+	// Get escalation stats
+	esc, deesc, turns, _ := s.db.TotalStats()
+
+	// Get validation stats
+	valStats, _ := s.db.GetValidationStats()
+	totalValidations := valStats["total_metrics"].(int)
+	estimatedTotal := valStats["estimated_total"].(int)
+	actualTotal := valStats["actual_total"].(int)
+	estimatedCost := valStats["estimated_cost_total"].(float64)
+	actualCost := valStats["actual_cost_total"].(float64)
+	avgTokenError := valStats["avg_token_error"].(float64)
+
+	// Calculate savings
+	tokensSaved := estimatedTotal - actualTotal
+	costSaved := estimatedCost - actualCost
+	savingsPercent := 0.0
+	if estimatedTotal > 0 {
+		savingsPercent = float64(tokensSaved) / float64(estimatedTotal) * 100
+	}
+
+	// Calculate accuracy percentage
+	accuracy := 100.0
+	if avgTokenError != 0 {
+		// Convert error percentage to accuracy (e.g., -3% error = 103% accuracy)
+		accuracy = 100.0 - avgTokenError
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		// Current state
+		"model":           currentModel,
+		"effort":          effortLevel,
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+
+		// Escalation metrics
+		"escalations":     esc,
+		"de_escalations":  deesc,
+		"turns":           turns,
+
+		// Validation metrics
+		"validations":     totalValidations,
+		"accuracy":        accuracy,
+		"avg_token_error": avgTokenError,
+
+		// Token statistics
+		"estimated_tokens": estimatedTotal,
+		"actual_tokens":    actualTotal,
+		"tokens_saved":     tokensSaved,
+		"savings_percent":  savingsPercent,
+
+		// Cost statistics
+		"estimated_cost": estimatedCost,
+		"actual_cost":    actualCost,
+		"cost_saved":     costSaved,
+
+		// Integration info
+		"service": "escalation-manager",
+		"version": "2.0",
+	})
+}
+
+// handleHookMetrics records estimated metrics from the hook (pre-response).
+// This creates the "estimate side" of the validation pair.
+func (s *Service) handleHookMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Prompt                    string `json:"prompt"`
+		DetectedTaskType          string `json:"detected_task_type"`
+		DetectedEffort            string `json:"detected_effort"`
+		RoutedModel               string `json:"routed_model"`
+		EstimatedInputTokens      int    `json:"estimated_input_tokens"`
+		EstimatedOutputTokens     int    `json:"estimated_output_tokens"`
+		EstimatedTotalTokens      int    `json:"estimated_total_tokens"`
+		EstimatedCost             float64 `json:"estimated_cost"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	// Create validation metric record with estimates
+	metric := store.ValidationMetric{
+		Prompt:                   req.Prompt,
+		DetectedTaskType:         req.DetectedTaskType,
+		DetectedEffort:           req.DetectedEffort,
+		RoutedModel:              req.RoutedModel,
+		EstimatedInputTokens:     req.EstimatedInputTokens,
+		EstimatedOutputTokens:    req.EstimatedOutputTokens,
+		EstimatedTotalTokens:     req.EstimatedTotalTokens,
+		EstimatedCost:            req.EstimatedCost,
+		Validated:                false, // Not validated yet (waiting for barista)
+	}
+
+	if err := s.db.LogValidationMetric(metric); err != nil {
+		http.Error(w, "failed to log metric", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":        true,
+		"validation_id":  metric.ID,
+		"estimated":      metric.EstimatedTotalTokens,
+		"effort":         metric.DetectedEffort,
+		"model":          metric.RoutedModel,
+		"timestamp":      time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 // Helper functions

@@ -14,6 +14,7 @@ Intelligent model escalation system for Claude Code that automatically routes ta
 - 🧠 **Auto-Effort**: Task complexity detection → automatic model routing
 - 📊 **Live Dashboard**: Real-time metrics with light/dark mode
 - 💰 **Cost Analysis**: See tokens saved vs all-Opus baseline
+- ✅ **Cost Validation**: Compare estimated vs actual token usage
 - 📈 **Complete Stats**: All events logged to SQLite
 - 🔄 **HTTP Service**: Single binary, no bash scripts needed
 
@@ -28,6 +29,7 @@ Start here based on what you need:
 | **[SETUP.md](SETUP.md)** | 🚀 Installation & configuration |
 | **[USAGE.md](USAGE.md)** | 📖 How to use escalation commands |
 | **[DASHBOARD.md](DASHBOARD.md)** | 📊 Dashboard features and metrics |
+| **[VALIDATION_INTEGRATION.md](VALIDATION_INTEGRATION.md)** | ✅ Token cost validation framework |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | 🏗️ Technical design |
 | **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** | 🌐 Production deployment |
 | **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | 🔧 Common issues and fixes |
