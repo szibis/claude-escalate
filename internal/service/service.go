@@ -62,11 +62,11 @@ type HookRequest struct {
 
 // HookResponse is returned after processing a hook.
 type HookResponse struct {
-	Continue        bool   `json:"continue"`
-	SuppressOutput  bool   `json:"suppressOutput"`
-	Action          string `json:"action,omitempty"`
-	Message         string `json:"message,omitempty"`
-	CurrentModel    string `json:"currentModel,omitempty"`
+	Continue       bool   `json:"continue"`
+	SuppressOutput bool   `json:"suppressOutput"`
+	Action         string `json:"action,omitempty"`
+	Message        string `json:"message,omitempty"`
+	CurrentModel   string `json:"currentModel,omitempty"`
 }
 
 // handleHook processes user prompts for /escalate commands, success signals, and task detection.
@@ -170,9 +170,9 @@ func (s *Service) handleEscalate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":       true,
-		"model":         target,
-		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"success":   true,
+		"model":     target,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		fmt.Printf("error encoding response: %v\n", err)
 	}
