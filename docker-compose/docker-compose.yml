@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  escalation-service:
+    image: szibis/claude-escalate:2.0.0
+    container_name: claude-escalation-service
+    ports:
+      - "8077:8077"  # Dashboard
+      - "9000:9000"  # Service API
+    volumes:
+      - escalation-data:/data
+      - ~/.claude/data/escalation:/data/escalation
+    environment:
+      - PORT=9000
+      - DASHBOARD_PORT=8077
+      - DATA_DIR=/data/escalation
+    command: ["service", "--listen", "0.0.0.0:9000", "--dashboard", "0.0.0.0:8077"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  escalation-data:
+    driver: local
