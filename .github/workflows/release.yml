@@ -70,8 +70,6 @@ jobs:
             goarch: amd64
           - goos: darwin
             goarch: arm64
-          - goos: windows
-            goarch: amd64
     steps:
       - uses: actions/checkout@v4
 
@@ -89,15 +87,12 @@ jobs:
           VERSION: ${{ needs.detect-version.outputs.version }}
         run: |
           OUTPUT="claude-escalate-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          
+
           mkdir -p dist
           go build \
             -ldflags="-s -w -X github.com/szibis/claude-escalate/internal/config.Version=${VERSION}" \
             -o "dist/${OUTPUT}" ./cmd/claude-escalate
-          
+
           echo "✅ Built: dist/${OUTPUT}"
 
       - name: Upload artifact
@@ -210,16 +205,10 @@ jobs:
             ./claude-escalate --version
             ```
 
-            ### Windows (PowerShell)
-            ```powershell
-            Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ needs.detect-version.outputs.version }}/claude-escalate-windows-amd64.exe" -OutFile "claude-escalate.exe"
-            .\claude-escalate.exe --version
-            ```
-
             ## 🔗 Release Info
             - Version: ${{ needs.detect-version.outputs.version }}
             - Released: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-            - Platform: Cross-platform (macOS, Linux, Windows)
+            - Platform: Cross-platform (macOS, Linux)
           files: releases/*
           draft: false
           prerelease: false
