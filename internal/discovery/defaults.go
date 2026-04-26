@@ -153,7 +153,7 @@ optimizations:
 	// Tools/adapters
 	config += `# Tool adapters (auto-detected)\n`
 
-	if detectedTools.GitPath != "" {
+	if detectedTools.GitAvailable {
 		config += `tools:
   cli:
     enabled: true
@@ -172,7 +172,7 @@ optimizations:
 `
 	}
 
-	if detectedTools.ScraplingPath != "" {
+	if detectedTools.ScraplingAvailable {
 		config += `  scrapling:
     enabled: true
     type: "mcp"
@@ -185,7 +185,7 @@ optimizations:
 `
 	}
 
-	if len(detectedTools.LSPServers) > 0 {
+	if detectedTools.LSPAvailable {
 		config += `  lsp:
     enabled: true
     type: "mcp"
@@ -252,7 +252,7 @@ func SaveDefaultConfig(config string) (string, error) {
 }
 
 // LoadOrDetect attempts to load config from file, falls back to auto-detection
-func LoadOrDetect(configPath string, discoveryConfigPath string) (string, *DetectedTools, error) {
+func LoadOrDetect(configPath string) (string, *DetectedTools, error) {
 	// If configPath provided, try to load it
 	if configPath != "" {
 		if data, err := os.ReadFile(configPath); err == nil {
@@ -260,24 +260,13 @@ func LoadOrDetect(configPath string, discoveryConfigPath string) (string, *Detec
 		}
 	}
 
-	// Fall back to auto-detection using discovery config
-	var detectedTools *DetectedTools
-	var err error
-
-	if discoveryConfigPath != "" {
-		detectedTools, err = DetectToolsWithConfig(discoveryConfigPath)
-		if err != nil {
-			// Fall back to hardcoded paths
-			detectedTools = DetectTools()
-		}
-	} else {
-		detectedTools = DetectTools()
-	}
-
+	// Fall back to auto-detection
+	detectedTools := DetectTools()
 	defaultConfig := GenerateDefaultConfig(detectedTools)
 
 	// Save auto-detected config
-	if _, err := SaveDefaultConfig(defaultConfig); err != nil {
+	savedPath, err := SaveDefaultConfig(defaultConfig)
+	if err != nil {
 		return defaultConfig, detectedTools, fmt.Errorf("auto-detected but failed to save: %w", err)
 	}
 
