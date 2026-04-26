@@ -91,6 +91,7 @@ func (pc *PercentileCalculator) queryLatencyPercentiles(where string, days int) 
 	}
 
 	// Get all latency values
+	// #nosec G201 - where clause is built from database-derived values only (SELECT DISTINCT results), not user input
 	query := fmt.Sprintf(`
 		SELECT latency_ms FROM validation_metrics WHERE %s ORDER BY latency_ms
 	`, whereClause)
@@ -141,6 +142,7 @@ func (pc *PercentileCalculator) CalculateTokenErrorPercentiles(days int) (Percen
 
 // getDistinctValues retrieves distinct values for a column.
 func (pc *PercentileCalculator) getDistinctValues(table, column string, days int) ([]string, error) {
+	// #nosec G201 - table and column are hardcoded in all call sites (validation_metrics, model, task_type, etc), not user input
 	query := fmt.Sprintf(`
 		SELECT DISTINCT %s FROM %s
 		WHERE timestamp >= datetime('now', '-%d days')
