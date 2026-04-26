@@ -183,6 +183,7 @@ func generateEmbedding(text string) []float64 {
 		hash := hashWord(word)
 		for i := 0; i < 384; i++ {
 			// Use hash to influence vector dimensions
+			// #nosec G115 - integer conversion is safe; hash value is from deterministic function, overflow is acceptable for random number generation
 			seed := uint32(hash) + uint32(i)
 			vector[i] += float64(lcgRandom(seed)) / float64(^uint32(0))
 		}

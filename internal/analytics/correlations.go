@@ -55,6 +55,7 @@ func (ca *CorrelationAnalyzer) AnalyzeCorrelations(days int) ([]Correlation, err
 
 // computePearsonCorrelation calculates Pearson correlation coefficient between two metrics.
 func (ca *CorrelationAnalyzer) computePearsonCorrelation(var1, var2 string, days int) (*Correlation, error) {
+	// #nosec G201 - var1 and var2 are hardcoded metric names from AnalyzeCorrelations, not user input
 	query := fmt.Sprintf(`
 		SELECT
 			SUM(%s) as sum_x,

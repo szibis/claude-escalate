@@ -206,6 +206,7 @@ func (tss *TimeSeriesStore) GetTrend(bucket string, days int) ([]MetricsTimeSeri
 		return nil, fmt.Errorf("invalid bucket: %s", bucket)
 	}
 
+	// #nosec G201 - tableName is validated against whitelist of known table names in switch statement above
 	query := fmt.Sprintf(`
 		SELECT
 			timestamp, total_requests, cache_hits, cache_misses, batch_queued, direct_requests,
@@ -253,6 +254,7 @@ func (tss *TimeSeriesStore) EnforceRetention(hourlyDays, dailyDays, weeklyDays i
 	}
 
 	for _, q := range queries {
+		// #nosec G201 - q.table is from hardcoded list above (metrics_hourly, metrics_daily, metrics_weekly), not user input
 		deleteQuery := fmt.Sprintf(`
 			DELETE FROM %s
 			WHERE timestamp < datetime('now', '-%d days')
