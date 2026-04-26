@@ -2,80 +2,210 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
+  detect-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should-release: ${{ steps.version.outputs.should-release }}
+      changelog: ${{ steps.changelog.outputs.body }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref }}"
+            VERSION="${VERSION#refs/tags/}"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "should-release=true" >> $GITHUB_OUTPUT
+          else
+            # Get latest tag and increment patch version
+            LATEST=$(git describe --tags --always --abbrev=0 2>/dev/null || echo "v4.0.0")
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+            PATCH=$((PATCH + 1))
+            VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+
+            # Check if we should release (commits since last tag)
+            COMMITS=$(git log ${LATEST}..HEAD --oneline 2>/dev/null | wc -l)
+            if [ "$COMMITS" -gt 0 ]; then
+              echo "version=${VERSION}" >> $GITHUB_OUTPUT
+              echo "should-release=true" >> $GITHUB_OUTPUT
+            else
+              echo "should-release=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        if: steps.version.outputs.should-release == 'true'
+        run: |
+          LATEST=$(git describe --tags --always --abbrev=0 2>/dev/null || echo "HEAD~20")
+          CHANGELOG=$(git log ${LATEST}..HEAD --pretty=format:"- %s (%h)" --no-merges 2>/dev/null || git log HEAD~20..HEAD --pretty=format:"- %s (%h)" --no-merges)
+
+          # Escape newlines for GitHub Actions output
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+
+          echo "body=${CHANGELOG}" >> $GITHUB_OUTPUT
+
   build:
-    name: Build Release Artifacts
-    runs-on: ${{ matrix.os }}
+    needs: detect-version
+    if: needs.detect-version.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux-amd64
-            target: linux
-            arch: amd64
-          - os: ubuntu-latest
-            name: linux-arm64
-            target: linux
-            arch: arm64
-          - os: macos-latest
-            name: macos-amd64
-            target: darwin
-            arch: amd64
-          - os: macos-latest
-            name: macos-arm64
-            target: darwin
-            arch: arm64
-          - os: windows-latest
-            name: windows-amd64
-            target: windows
-            arch: amd64
-
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-    - name: Build
-      env:
-        GOOS: ${{ matrix.target }}
-        GOARCH: ${{ matrix.arch }}
-      run: |
-        mkdir -p dist
-        if [ "${{ matrix.target }}" = "windows" ]; then
-          go build -o dist/escalation-manager.exe ./cmd/escalation-cli/main.go
-        else
-          go build -o dist/escalation-manager ./cmd/escalation-cli/main.go
-        fi
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          VERSION: ${{ needs.detect-version.outputs.version }}
+        run: |
+          OUTPUT="claude-escalate-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          go build -ldflags="-s -w -X github.com/szibis/claude-escalate/internal/config.Version=${VERSION}" \
+            -o "${OUTPUT}" ./cmd/claude-escalate
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: escalation-manager-${{ matrix.name }}
-        path: dist/
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: builds-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: claude-escalate-*
 
-  create-release:
-    name: Create Release
+  docker:
+    needs: detect-version
+    if: needs.detect-version.outputs.should-release == 'true'
     runs-on: ubuntu-latest
-    needs: build
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
-      with:
-        path: release-artifacts
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release-artifacts/**/*
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ needs.detect-version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.detect-version.outputs.version }}
+
+  github-release:
+    needs: [detect-version, build, docker]
+    if: needs.detect-version.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.detect-version.outputs.version }}
+          body: |
+            # ${{ needs.detect-version.outputs.version }}
+
+            ## Changes
+            ${{ needs.detect-version.outputs.changelog }}
+
+            ## Docker
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ needs.detect-version.outputs.version }}
+            ```
+
+            ## Installation
+            Download the binary for your platform below or use Docker image above.
+          files: |
+            artifacts/builds-*/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-changelog:
+    needs: [detect-version, github-release]
+    if: needs.detect-version.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          DATE=$(date -u +"%Y-%m-%d")
+
+          # Create changelog entry header
+          CHANGELOG_ENTRY="## [${VERSION#v}] - ${DATE}"$'\n\n'
+          CHANGELOG_ENTRY+="### Added"$'\n'
+          CHANGELOG_ENTRY+="- Semantic caching with vector embeddings"$'\n'
+          CHANGELOG_ENTRY+="- GHCR container releases"$'\n'
+          CHANGELOG_ENTRY+="- Automated changelog updates"$'\n\n'
+          CHANGELOG_ENTRY+="### Changed"$'\n'
+          CHANGELOG_ENTRY+="- Improved cache hit rate with semantic matching"$'\n\n'
+          CHANGELOG_ENTRY+="### Fixed"$'\n'
+          CHANGELOG_ENTRY+="- False positive rate monitoring in semantic cache"$'\n\n'
+
+          # Create new CHANGELOG if doesn't exist
+          if [ ! -f CHANGELOG.md ]; then
+            touch CHANGELOG.md
+          fi
+
+          # Prepend entry to changelog
+          {
+            echo "$CHANGELOG_ENTRY"
+            cat CHANGELOG.md
+          } > CHANGELOG.md.tmp
+
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+      - name: Commit changelog
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: update CHANGELOG for ${{ needs.detect-version.outputs.version }}"
+          file_pattern: CHANGELOG.md
+          skip_fetch: false
