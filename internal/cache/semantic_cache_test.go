@@ -177,7 +177,7 @@ func TestExactLookup(t *testing.T) {
 	}
 
 	// Lookup non-existent key
-	result, found = cache.ExactLookup("nonexistent")
+	_, found = cache.ExactLookup("nonexistent")
 	if found {
 		t.Error("Should not find non-existent key")
 	}

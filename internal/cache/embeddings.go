@@ -49,7 +49,7 @@ func (e *EmbeddingModel) Embed(ctx context.Context, text string) ([]float32, err
 	hash := fnvHash(text)
 	for i := 0; i < e.dimension; i++ {
 		// Pseudo-random but deterministic (seeded by hash)
-		seed := uint64(hash) ^ uint64(i)*2654435761
+		seed := uint64(hash) ^ (uint64(i)*2654435761)
 		seed = seed * 6364136223846793005 + 1442695040888963407
 		embedding[i] = float32((seed >> 32) % 10000) / 10000.0
 	}

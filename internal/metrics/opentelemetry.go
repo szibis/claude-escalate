@@ -106,16 +106,16 @@ func (oe *OpenTelemetryExporter) AddMetric(metric OTelMetric) error {
 	// Flush if batch size reached or timeout exceeded
 	if len(oe.batch) >= oe.config.BatchSize ||
 		time.Since(oe.lastFlushTime) > time.Duration(oe.config.BatchTimeout)*time.Millisecond {
-		return oe.flushBatch()
+		oe.flushBatch()
 	}
 
 	return nil
 }
 
-// flushBatch sends accumulated metrics to OTEL endpoint
-func (oe *OpenTelemetryExporter) flushBatch() error {
+// flushBatch sends accumulated metrics to OTEL endpoint (non-blocking)
+func (oe *OpenTelemetryExporter) flushBatch() {
 	if len(oe.batch) == 0 {
-		return nil
+		return
 	}
 
 	payload := &OTelPayload{
@@ -134,8 +134,6 @@ func (oe *OpenTelemetryExporter) flushBatch() error {
 	go func() {
 		_ = oe.sendPayload(payload)
 	}()
-
-	return nil
 }
 
 // snapshotToMetrics converts MetricSnapshot to OTelMetrics

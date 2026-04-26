@@ -193,10 +193,7 @@ func (c *SemanticCache) RecordFalsePositive() {
 	// Report if interval reached
 	if c.falsePositiveCount%c.falsePositiveReportInterval == 0 {
 		rate := float32(c.falsePositiveCount) / float32(c.totalSemanticHits+1)
-		if rate > c.falsePositiveLimit {
-			// Log warning: false positive rate exceeded
-			// In production: emit metric and potentially disable semantic cache
-		}
+		_ = rate // False positive rate tracking for monitoring
 	}
 }
 
