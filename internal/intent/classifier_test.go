@@ -1,7 +1,6 @@
 package intent
 
 import (
-	"context"
 	"testing"
 )
 
@@ -36,7 +35,7 @@ func TestClassifyQuickAnswer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			if decision.Intent != tt.expectIntent {
 				t.Errorf("expected intent %v, got %v", tt.expectIntent, decision.Intent)
@@ -79,7 +78,7 @@ func TestClassifyDetailedAnalysis(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			if decision.Intent != tt.expectIntent {
 				t.Errorf("expected intent %v, got %v", tt.expectIntent, decision.Intent)
@@ -110,7 +109,7 @@ func TestClassifyRoutine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			if decision.Intent != tt.expectIntent && decision.Intent != IntentQuickAnswer {
 				// Could be classified as either ROUTINE or QUICK_ANSWER
@@ -157,7 +156,7 @@ func TestCacheBypassPattern_NoCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			// Cache bypass should ALWAYS force unsafe (HIGHEST PRIORITY)
 			if decision.CacheSafe {
@@ -177,7 +176,7 @@ func TestCacheBypassHighestPriority(t *testing.T) {
 	// Query with bypass pattern but QUICK intent
 	// Bypass should override and force NO caching
 	query := "--no-cache Quick summary of this code"
-	decision := classifier.Classify(context.TODO(), query, "test-user", nil)
+	decision := classifier.Classify(nil, query, "test-user", nil)
 
 	if decision.CacheSafe {
 		t.Error("cache bypass HIGHEST PRIORITY: should force cache unsafe even for QUICK intent")
@@ -209,7 +208,7 @@ func TestIntentAndModelCoupling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			// Model and cache decision should be coupled
 			if decision.RecommendedModel != tt.expectModel && decision.RecommendedModel != ModelSonnet {
@@ -230,9 +229,9 @@ func TestConfidenceScoring(t *testing.T) {
 	classifier := NewClassifier(90)
 
 	tests := []struct {
-		name           string
-		query          string
-		expectHighConf bool // true = confidence >0.8, false = confidence <=0.8
+		name              string
+		query             string
+		expectHighConf    bool // true = confidence >0.8, false = confidence <=0.8
 	}{
 		{
 			name:           "clear quick answer",
@@ -248,7 +247,7 @@ func TestConfidenceScoring(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			highConf := decision.Confidence > 0.8
 			if highConf != tt.expectHighConf {
@@ -280,7 +279,7 @@ func TestMaxTokensCalculation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := classifier.Classify(context.TODO(), tt.query, "test-user", nil)
+			decision := classifier.Classify(nil, tt.query, "test-user", nil)
 
 			if decision.MaxTokens > tt.expectMaxLess {
 				t.Logf("max tokens %d within expectation", decision.MaxTokens)
@@ -296,7 +295,7 @@ func BenchmarkIntentClassification(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		classifier.Classify(context.TODO(), query, "test-user", nil)
+		classifier.Classify(nil, query, "test-user", nil)
 	}
 }
 
@@ -304,7 +303,7 @@ func BenchmarkIntentClassification(b *testing.B) {
 func TestClassifyWithNilHistory(t *testing.T) {
 	classifier := NewClassifier(90)
 
-	decision := classifier.Classify(context.TODO(), "Find functions", "test-user", nil)
+	decision := classifier.Classify(nil, "Find functions", "test-user", nil)
 	if decision == nil {
 		t.Error("expected non-nil decision with nil history")
 	}

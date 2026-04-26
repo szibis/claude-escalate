@@ -24,21 +24,20 @@ func NewAttackPatterns() *AttackPatterns {
 func compileSQLPatterns() []*regexp.Regexp {
 	patterns := []string{
 		// Common SQL injection techniques
-		`(?i)'\s*(or|and)\s*'?\s*=\s*'`,                    // ' OR '='
-		`(?i)'\s*(or|and)\s*'?\s*=\s*[0-9]`,               // ' OR '=' 0/1
-		`(?i);\s*(drop|delete|insert|update|truncate)`,    // ; DROP/DELETE/INSERT
-		`(?i)--\s*$`,                                        // SQL comments
+		`(?i)'\s*(?:or|and|union|select)\s*'`,              // ' OR ', ' AND ', ' UNION ', etc
+		`(?i)'\s*(?:or|and)\s*[0-9=]`,                      // ' OR 1, ' AND 1=1, etc
+		`(?i);\s*(?:drop|delete|insert|update|truncate)`,  // ; DROP TABLE, ; DELETE, etc
+		`(?i)--\s*(?:drop|delete|insert|update|truncate)`,  // -- DROP, -- DELETE (injection comments)
 		`(?i)/\*.*?\*/`,                                     // /* */ comments
 		`(?i)union\s+select`,                                // UNION SELECT
 		`(?i)union\s+all\s+select`,                         // UNION ALL SELECT
 		`(?i)exec\s*\(`,                                     // EXEC()
 		`(?i)execute\s*\(`,                                  // EXECUTE()
-		`(?i)script\s*>`,                                    // script>
 		`(?i)\x00`,                                          // Null byte injection
 		`(?i)having\s+1\s*=\s*1`,                           // HAVING 1=1
-		`(?i)waitfor\s+delay`,                               // WAITFOR DELAY (SQL Server)
-		`(?i)benchmark\s*\(`,                                // BENCHMARK() (MySQL)
-		`(?i)sleep\s*\(`,                                    // SLEEP() (MySQL)
+		`(?i)waitfor\s+delay`,                               // WAITFOR DELAY
+		`(?i)benchmark\s*\(`,                                // BENCHMARK()
+		`(?i)sleep\s*\(`,                                    // SLEEP()
 	}
 
 	return compilePatterns(patterns)

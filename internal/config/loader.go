@@ -81,6 +81,7 @@ func (l *Loader) generateDefaultConfig() (*Config, error) {
 			SecurityLayer:   true,
 			ShutdownTimeout: 30,
 			MaxRequestSize:  10485760, // 10MB
+			DataDir:         expandHome("~/.claude-escalate/data"),
 		},
 		Optimizations: OptimizationsConfig{
 			RTK: RTKConfig{
@@ -227,6 +228,7 @@ func (l *Loader) generateDefaultConfigWithDiscovery() (*Config, error) {
 			SecurityLayer:   true,
 			ShutdownTimeout: 30,
 			MaxRequestSize:  10485760, // 10MB
+			DataDir:         expandHome("~/.claude-escalate/data"),
 		},
 		Optimizations: OptimizationsConfig{
 			RTK: RTKConfig{

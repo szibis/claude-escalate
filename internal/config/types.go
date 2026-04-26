@@ -20,6 +20,7 @@ type GatewayConfig struct {
 	SecurityLayer    bool   `yaml:"security_layer"`
 	ShutdownTimeout  int    `yaml:"shutdown_timeout_seconds"`
 	MaxRequestSize   int    `yaml:"max_request_size_bytes"`
+	DataDir          string `yaml:"data_dir"`
 }
 
 // OptimizationsConfig configures all optimization layers
