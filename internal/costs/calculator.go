@@ -158,6 +158,23 @@ func (c *Calculator) CompareModels(tokens TokenCosts) (map[string]CostBreakdown,
 
 // EstimateCost estimates cost without actual token data (for pre-request estimation)
 func (c *Calculator) EstimateCost(model string, promptLength int, estimatedOutputLength int) (CostBreakdown, error) {
+	// Validate inputs to prevent integer overflow or negative values
+	if promptLength < 0 {
+		return CostBreakdown{}, fmt.Errorf("promptLength cannot be negative: %d", promptLength)
+	}
+	if estimatedOutputLength < 0 {
+		return CostBreakdown{}, fmt.Errorf("estimatedOutputLength cannot be negative: %d", estimatedOutputLength)
+	}
+
+	const maxPromptLength = 10_000_000   // 10M characters
+	const maxOutputLength = 1_000_000    // 1M characters
+	if promptLength > maxPromptLength {
+		return CostBreakdown{}, fmt.Errorf("promptLength too large: %d > %d", promptLength, maxPromptLength)
+	}
+	if estimatedOutputLength > maxOutputLength {
+		return CostBreakdown{}, fmt.Errorf("estimatedOutputLength too large: %d > %d", estimatedOutputLength, maxOutputLength)
+	}
+
 	// Rough heuristics for estimation:
 	// - 1 character ≈ 0.25 tokens
 	// - Prompt tokens = promptLength * 0.25
