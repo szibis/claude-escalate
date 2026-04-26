@@ -214,26 +214,27 @@ func expandPath(p string) string {
 func findGlob(pattern string) []string {
 	var results []string
 
-	// Handle patterns like ~/.nvm/*/bin/node
-	parts := strings.Split(pattern, "*")
-	if len(parts) < 2 {
-		return results
-	}
-
-	prefix := expandPath(parts[0])
-	suffix := parts[1]
-
-	// List directories in prefix
-	entries, err := os.ReadDir(prefix)
+	// Use filepath.Glob for proper wildcard handling
+	expanded := expandPath(pattern)
+	matches, err := filepath.Glob(expanded)
 	if err != nil {
 		return results
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			candidate := filepath.Join(prefix, entry.Name(), suffix)
-			if _, err := os.Stat(candidate); err == nil {
-				results = append(results, candidate)
+	// Filter to only executable files (on Unix)
+	for _, match := range matches {
+		info, err := os.Stat(match)
+		if err != nil {
+			continue
+		}
+
+		if runtime.GOOS == "windows" {
+			if !info.IsDir() {
+				results = append(results, match)
+			}
+		} else {
+			if !info.IsDir() && (info.Mode()&0111) != 0 {
+				results = append(results, match)
 			}
 		}
 	}

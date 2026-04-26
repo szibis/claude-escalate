@@ -2,6 +2,7 @@ package security
 
 import (
 	"fmt"
+	"html"
 	"strings"
 )
 
@@ -70,6 +71,13 @@ func (v *Validator) validateSQL(input string, result *ValidationResult) (bool, *
 
 	// Additional heuristic checks
 	upperInput := strings.ToUpper(input)
+
+	// Check for SQL comments (suspicious in user input - could hide injected code)
+	if strings.Contains(input, "--") || strings.Contains(input, "/*") {
+		result.IsValid = false
+		result.Errors = append(result.Errors, "SQL comments detected in input")
+		return false, result
+	}
 
 	// Check for SQL keywords used suspiciously
 	suspiciousKeywords := []string{"DROP TABLE", "DELETE FROM", "INSERT INTO", "UPDATE", "TRUNCATE", "UNION SELECT"}
@@ -150,20 +158,8 @@ func (v *Validator) validateGeneric(input string, result *ValidationResult) (boo
 
 // sanitizeHTML escapes HTML special characters
 func (v *Validator) sanitizeHTML(output string, result *ValidationResult) string {
-	replacements := map[string]string{
-		"&": "&amp;",
-		"<": "&lt;",
-		">": "&gt;",
-		"\"": "&quot;",
-		"'": "&#39;",
-	}
-
-	sanitized := output
-	for char, replacement := range replacements {
-		sanitized = strings.ReplaceAll(sanitized, char, replacement)
-	}
-
-	return sanitized
+	// Use standard library html.EscapeString for proper HTML entity encoding
+	return html.EscapeString(output)
 }
 
 // sanitizeSQL escapes SQL special characters
@@ -196,7 +192,7 @@ func (v *Validator) IsHighRiskInput(input string) bool {
 		"JAVASCRIPT:",
 		"ONERROR=",
 		"${",
-		"$()",
+		"$(",
 		"UNION",
 	}
 
