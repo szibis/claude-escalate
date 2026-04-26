@@ -85,7 +85,10 @@ func (oe *OpenTelemetryExporter) Export() error {
 	oe.mu.RUnlock()
 
 	metrics := oe.snapshotToMetrics(snapshot)
-	return oe.send(metrics)
+	if len(metrics) > 0 {
+		return oe.send(metrics)
+	}
+	return nil
 }
 
 // AddMetric adds a metric to the batch
@@ -123,7 +126,6 @@ func (oe *OpenTelemetryExporter) flushBatch() error {
 		Timestamp:      time.Now().UnixMilli(),
 	}
 
-	batch := oe.batch
 	oe.batch = make([]OTelMetric, 0, oe.config.BatchSize)
 	oe.lastFlushTime = time.Now()
 	oe.lastFlushCount = 0
@@ -136,60 +138,71 @@ func (oe *OpenTelemetryExporter) flushBatch() error {
 	return nil
 }
 
-// snapshotToMetrics converts MetricsSnapshot to OTelMetrics
-func (oe *OpenTelemetryExporter) snapshotToMetrics(snapshot *MetricsSnapshot) []OTelMetric {
+// snapshotToMetrics converts MetricSnapshot to OTelMetrics
+func (oe *OpenTelemetryExporter) snapshotToMetrics(snapshot MetricSnapshot) []OTelMetric {
 	metrics := make([]OTelMetric, 0)
 	now := time.Now().UnixMilli()
 
 	// Cache metrics
-	metrics = append(metrics, OTelMetric{
-		Name:      "claude_escalate_cache_hit_rate",
-		Type:      "gauge",
-		Value:     snapshot.CacheMetrics.HitRate,
-		Timestamp: now,
-	})
+	if snapshot.CacheMetrics != nil {
+		metrics = append(metrics, OTelMetric{
+			Name:      "claude_escalate_cache_hit_rate",
+			Type:      "gauge",
+			Value:     snapshot.CacheMetrics.HitRate,
+			Timestamp: now,
+		})
 
-	metrics = append(metrics, OTelMetric{
-		Name:      "claude_escalate_cache_false_positive_rate",
-		Type:      "gauge",
-		Value:     float64(snapshot.CacheMetrics.FalsePositives) / float64(snapshot.CacheMetrics.Lookups),
-		Timestamp: now,
-	})
-
-	metrics = append(metrics, OTelMetric{
-		Name:      "claude_escalate_cache_hits_total",
-		Type:      "counter",
-		Value:     float64(snapshot.CacheMetrics.TotalHits),
-		Timestamp: now,
-	})
+		metrics = append(metrics, OTelMetric{
+			Name:      "claude_escalate_cache_hits_total",
+			Type:      "counter",
+			Value:     float64(snapshot.CacheMetrics.TotalHits),
+			Timestamp: now,
+		})
+	}
 
 	// Token metrics
-	metrics = append(metrics, OTelMetric{
-		Name:      "claude_escalate_tokens_saved_total",
-		Type:      "counter",
-		Value:     float64(snapshot.TokenMetrics.TokensSavedByOptimization),
-		Timestamp: now,
-	})
+	if snapshot.TokenMetrics != nil {
+		metrics = append(metrics, OTelMetric{
+			Name:      "claude_escalate_tokens_saved_total",
+			Type:      "counter",
+			Value:     float64(snapshot.TokenMetrics.TokensSavedByOptimization),
+			Timestamp: now,
+		})
 
-	metrics = append(metrics, OTelMetric{
-		Name:      "claude_escalate_token_savings_percent",
-		Type:      "gauge",
-		Value:     snapshot.TokenMetrics.SavingsPercent,
-		Timestamp: now,
-	})
+		metrics = append(metrics, OTelMetric{
+			Name:      "claude_escalate_token_savings_percent",
+			Type:      "gauge",
+			Value:     snapshot.TokenMetrics.SavingsPercent,
+			Timestamp: now,
+		})
+	}
 
 	// Latency metrics
-	if snapshot.LatencyMetrics.TotalMs > 0 {
+	if snapshot.LatencyMetrics != nil && snapshot.LatencyMetrics.TotalMs > 0 {
 		metrics = append(metrics, OTelMetric{
-			Name:      "claude_escalate_latency_ms",
-			Type:      "histogram",
-			Value:     float64(snapshot.LatencyMetrics.TotalMs) / float64(snapshot.LatencyMetrics.Count),
+			Name:      "claude_escalate_latency_total_ms",
+			Type:      "gauge",
+			Value:     snapshot.LatencyMetrics.TotalMs,
+			Timestamp: now,
+		})
+
+		metrics = append(metrics, OTelMetric{
+			Name:      "claude_escalate_cache_lookup_latency_ms",
+			Type:      "gauge",
+			Value:     snapshot.LatencyMetrics.CacheLookupMs,
+			Timestamp: now,
+		})
+
+		metrics = append(metrics, OTelMetric{
+			Name:      "claude_escalate_security_validation_latency_ms",
+			Type:      "gauge",
+			Value:     snapshot.LatencyMetrics.SecurityValidationMs,
 			Timestamp: now,
 		})
 	}
 
 	// Security metrics
-	if snapshot.SecurityMetrics.InjectionAttemptsBlocked > 0 {
+	if snapshot.SecurityMetrics != nil && snapshot.SecurityMetrics.InjectionAttemptsBlocked > 0 {
 		metrics = append(metrics, OTelMetric{
 			Name:      "claude_escalate_security_injections_blocked",
 			Type:      "counter",
