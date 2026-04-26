@@ -4,20 +4,18 @@ import (
 	"context"
 	"strings"
 	"time"
-
-	"github.com/szibis/claude-escalate/internal/models"
 )
 
 // IntentType represents the classified intent
 type IntentType string
 
 const (
-	IntentQuickAnswer      IntentType = "quick_answer"
-	IntentDetailedAnalysis IntentType = "detailed_analysis"
-	IntentRoutine          IntentType = "routine"
-	IntentLearning         IntentType = "learning"
-	IntentFollowUp         IntentType = "follow_up"
-	IntentCacheBypass      IntentType = "cache_bypass"
+	IntentQuickAnswer       IntentType = "quick_answer"
+	IntentDetailedAnalysis  IntentType = "detailed_analysis"
+	IntentRoutine           IntentType = "routine"
+	IntentLearning          IntentType = "learning"
+	IntentFollowUp          IntentType = "follow_up"
+	IntentCacheBypass       IntentType = "cache_bypass"
 )
 
 // EffortLevel represents the effort required
@@ -40,16 +38,16 @@ const (
 
 // IntentDecision represents the full decision for a query
 type IntentDecision struct {
-	Intent           IntentType
-	CacheSafe        bool
-	RecommendedModel ModelType
-	MaxTokens        int
-	OptimizeMode     OptimizeLevel
-	Confidence       float64
-	EffortLevel      EffortLevel
-	FeedbackBonus    float64
-	Explanation      string
-	Timestamp        time.Time
+	Intent              IntentType
+	CacheSafe           bool
+	RecommendedModel    ModelType
+	MaxTokens           int
+	OptimizeMode        OptimizeLevel
+	Confidence          float64
+	EffortLevel         EffortLevel
+	FeedbackBonus       float64
+	Explanation         string
+	Timestamp           time.Time
 }
 
 // OptimizeLevel represents the optimization aggressiveness
@@ -63,57 +61,49 @@ const (
 
 // Classifier classifies query intent and makes coupling decisions
 type Classifier struct {
-	bypassPatterns      map[string]bool
-	bypassDetector      *BypassDetector
-	detailKeywords      []string
-	quickKeywords       []string
-	followUpKeywords    []string
-	learningKeywords    []string
-	userFeedback        map[string]*UserFeedbackPattern
+	bypassPatterns    map[string]bool
+	detailKeywords    []string
+	quickKeywords     []string
+	followUpKeywords  []string
+	learningKeywords  []string
+	userFeedback      map[string]*UserFeedbackPattern
 	feedbackHistoryDays int
-	modelManager        *models.Manager
 }
 
 // NewClassifier creates a new intent classifier
 func NewClassifier(feedbackHistoryDays int) *Classifier {
-	// Initialize ML model manager (optional, with fallback)
-	modelCfg := models.DefaultModelConfig()
-	modelManager, _ := models.NewManager(modelCfg)
-
 	classifier := &Classifier{
-		bypassPatterns:      makeBypassPatterns(),
-		bypassDetector:      NewBypassDetector(),
-		detailKeywords:      []string{"detailed", "comprehensive", "explain", "why", "how", "deep", "thorough", "analysis"},
-		quickKeywords:       []string{"quick", "brief", "summary", "tl;dr", "just", "simply", "shortly"},
-		followUpKeywords:    []string{"more", "additional", "also", "what about", "furthermore", "moreover"},
-		learningKeywords:    []string{"what if", "try", "experiment", "compare", "explore", "alternative"},
-		userFeedback:        make(map[string]*UserFeedbackPattern),
+		bypassPatterns:     makeBypassPatterns(),
+		detailKeywords:     []string{"detailed", "comprehensive", "explain", "why", "how", "deep", "thorough", "analysis"},
+		quickKeywords:      []string{"quick", "brief", "summary", "tl;dr", "just", "simply", "shortly"},
+		followUpKeywords:   []string{"more", "additional", "also", "what about", "furthermore", "moreover"},
+		learningKeywords:   []string{"what if", "try", "experiment", "compare", "explore", "alternative"},
+		userFeedback:       make(map[string]*UserFeedbackPattern),
 		feedbackHistoryDays: feedbackHistoryDays,
-		modelManager:        modelManager,
 	}
 	return classifier
 }
 
 // Classify classifies a query and returns the decision
 func (c *Classifier) Classify(ctx context.Context, query string, userID string, context *QueryContext) *IntentDecision {
-	// Check for explicit cache bypass first (HIGHEST PRIORITY - Layer 1)
-	bypassResult := c.bypassDetector.Detect(query)
-	if c.bypassDetector.ShouldBypass(bypassResult, 0.75) {
+	// Check for explicit cache bypass first (HIGHEST PRIORITY)
+	if c.hasExplicitBypass(query) {
 		return &IntentDecision{
 			Intent:           IntentCacheBypass,
 			CacheSafe:        false,
 			RecommendedModel: ModelSonnet,
 			MaxTokens:        2000,
 			OptimizeMode:     OptimizeLevelMinimal,
-			Confidence:       bypassResult.Confidence,
+			Confidence:       1.0,
 			EffortLevel:      EffortHigh,
-			Explanation:      "User explicitly requested cache bypass (" + bypassResult.Reason + ")",
+			Explanation:      "User explicitly requested cache bypass (--no-cache, --fresh, !, etc)",
 			Timestamp:        time.Now(),
 		}
 	}
 
-	// Detect base intent: try ML models first, fall back to keywords
-	baseIntent := c.detectBaseIntentWithML(ctx, query)
+	// Detect base intent from keywords and sentiment
+	baseIntent := c.detectBaseIntent(query)
+	effortLevel := c.intentToEffort(baseIntent)
 
 	// Get user feedback history to modulate decision
 	feedback := c.getUserFeedback(userID)
@@ -153,70 +143,21 @@ func (c *Classifier) hasExplicitBypass(query string) bool {
 	return false
 }
 
-// detectBaseIntentWithML detects intent using ML models with keyword fallback
-func (c *Classifier) detectBaseIntentWithML(ctx context.Context, query string) IntentType {
-	// Try ML model first (if available)
-	if c.modelManager != nil {
-		result, err := c.modelManager.Infer(ctx, models.ModelTypeIntent, query)
-		if err == nil && result != nil {
-			// Extract intent from ML result
-			if resultMap, ok := result.(map[string]interface{}); ok {
-				if intent, exists := resultMap["intent"]; exists {
-					if intentStr, ok := intent.(string); ok {
-						// Map string result to IntentType
-						if mlIntent := c.mlStringToIntentType(intentStr); mlIntent != "" {
-							return mlIntent
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Fall back to keyword-based detection
-	return c.detectBaseIntent(query)
-}
-
-// mlStringToIntentType converts ML model string output to IntentType
-func (c *Classifier) mlStringToIntentType(mlIntent string) IntentType {
-	switch strings.ToLower(mlIntent) {
-	case "quick_answer", "quick answer", "summary":
-		return IntentQuickAnswer
-	case "detailed_analysis", "detailed analysis", "explain":
-		return IntentDetailedAnalysis
-	case "routine", "repetitive":
-		return IntentRoutine
-	case "learning", "exploration":
-		return IntentLearning
-	case "follow_up", "followup", "refinement":
-		return IntentFollowUp
-	default:
-		return ""
-	}
-}
-
 // detectBaseIntent detects intent from keywords
 func (c *Classifier) detectBaseIntent(query string) IntentType {
 	lowerQuery := strings.ToLower(query)
-
-	// Check for quick request first (quick is a constraint that overrides detail)
-	hasQuick := false
-	for _, keyword := range c.quickKeywords {
-		if strings.Contains(lowerQuery, keyword) {
-			hasQuick = true
-			break
-		}
-	}
-
-	// If quick keyword present, return quick answer (even if detail keywords present)
-	if hasQuick {
-		return IntentQuickAnswer
-	}
 
 	// Check for detailed request
 	for _, keyword := range c.detailKeywords {
 		if strings.Contains(lowerQuery, keyword) {
 			return IntentDetailedAnalysis
+		}
+	}
+
+	// Check for quick request
+	for _, keyword := range c.quickKeywords {
+		if strings.Contains(lowerQuery, keyword) {
+			return IntentQuickAnswer
 		}
 	}
 
@@ -297,7 +238,7 @@ func (c *Classifier) isCacheSafe(intent IntentType) bool {
 }
 
 // calculateConfidence calculates confidence in the classification
-func (c *Classifier) calculateConfidence(_ IntentType, feedback *UserFeedbackPattern, query string) float64 {
+func (c *Classifier) calculateConfidence(intent IntentType, feedback *UserFeedbackPattern, query string) float64 {
 	baseConfidence := 0.7
 
 	// Adjust based on keyword matches
@@ -324,11 +265,7 @@ func (c *Classifier) countKeywordMatches(query string) int {
 	lowerQuery := strings.ToLower(query)
 	count := 0
 
-	var allKeywords []string
-	allKeywords = append(allKeywords, c.detailKeywords...)
-	allKeywords = append(allKeywords, c.quickKeywords...)
-	allKeywords = append(allKeywords, c.followUpKeywords...)
-	allKeywords = append(allKeywords, c.learningKeywords...)
+	allKeywords := append(append(append(append(c.detailKeywords, c.quickKeywords...), c.followUpKeywords...), c.learningKeywords...)...)
 
 	for _, keyword := range allKeywords {
 		if strings.Contains(lowerQuery, keyword) {
@@ -391,7 +328,7 @@ func (c *Classifier) optimizeModeForIntent(intent IntentType) OptimizeLevel {
 }
 
 // explainDecision provides explanation for the decision
-func (c *Classifier) explainDecision(baseIntent, finalIntent IntentType, _ *UserFeedbackPattern) string {
+func (c *Classifier) explainDecision(baseIntent, finalIntent IntentType, feedback *UserFeedbackPattern) string {
 	if baseIntent == finalIntent {
 		return "Intent detected: " + string(finalIntent)
 	}
@@ -448,11 +385,11 @@ func (c *Classifier) RecordFeedback(userID string, decision *IntentDecision, rat
 // makeBypassPatterns creates the cache bypass patterns
 func makeBypassPatterns() map[string]bool {
 	return map[string]bool{
-		"--no-cache": true,
-		"--fresh":    true,
-		"!":          true,
-		"(no cache)": true,
-		"(bypass)":   true,
-		"(fresh)":    true,
+		"--no-cache":  true,
+		"--fresh":     true,
+		"!":           true,
+		"(no cache)":  true,
+		"(bypass)":    true,
+		"(fresh)":     true,
 	}
 }
