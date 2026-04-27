@@ -178,7 +178,7 @@ func (cgl *CacheGraphLayer) lookupGraph(ctx context.Context, query string) *grap
 	// Perform graph lookup based on query type
 	if cgl.isFindCallersQuery(query) {
 		// Find all functions calling entityName
-		nodes, err := cgl.graphDB.FindCallers(ctx, entityName, 10)
+		nodes, err := cgl.graphDB.FindCallers(ctx, entityName)
 		if err != nil {
 			return &graph.GraphLookupResult{
 				Found: false,
