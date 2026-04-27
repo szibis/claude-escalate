@@ -337,11 +337,13 @@ func runLoadTestInternal(config *LoadTestConfig, router *batch.Router, verbose b
 	for i := 0; i < config.Workers; i++ {
 		go func(workerID int) {
 			defer wg.Done()
+			localReqCount := 0
 			for range requestChan {
 				start := time.Now()
+				localReqCount++
 
 				req := batch.BatchRequest{
-					ID:              fmt.Sprintf("test_req_%d_%d", workerID, metrics.TotalRequests),
+					ID:              fmt.Sprintf("test_req_%d_%d", workerID, localReqCount),
 					PromptLength:    5000 + workerID*100,
 					EstimatedOutput: 2000 + workerID*50,
 					Model:           "sonnet",
