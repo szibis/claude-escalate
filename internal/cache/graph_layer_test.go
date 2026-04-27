@@ -253,9 +253,9 @@ func TestCacheGraphLayer_GetStats(t *testing.T) {
 		t.Fatal("Stats missing 'graph' key")
 	}
 
-	graphStats := stats["graph"].(map[string]interface{})
-	if nodeCount, ok := graphStats["node_count"].(int64); !ok || nodeCount != 1 {
-		t.Fatalf("Expected 1 node, got %v", graphStats["node_count"])
+	graphStats := stats["graph"].(map[string]int64)
+	if nodeCount := graphStats["node_count"]; nodeCount != 1 {
+		t.Fatalf("Expected 1 node, got %v", nodeCount)
 	}
 }
 
@@ -294,8 +294,8 @@ func TestCacheGraphLayer_Clear(t *testing.T) {
 	}
 
 	graphStats, _ := graphDB.GetStats(ctx)
-	if nodeCount, ok := graphStats["node_count"].(int64); !ok || nodeCount != 0 {
-		t.Fatalf("Graph not cleared, node count: %v", graphStats["node_count"])
+	if nodeCount := graphStats["node_count"]; nodeCount != 0 {
+		t.Fatalf("Graph not cleared, node count: %v", nodeCount)
 	}
 }
 
