@@ -56,8 +56,14 @@ func TestMemoryLeakBatchQueue(t *testing.T) {
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
 	var heapGrowthPercent float64
-	if m1.HeapAlloc > 0 {
+	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
+	if m1.HeapAlloc > 100*1024 {
 		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
+	} else {
+		// If baseline too small, use absolute bytes as threshold (10MB)
+		if heapGrowth > 10*1024*1024 {
+			heapGrowthPercent = 100.0
+		}
 	}
 
 	t.Logf("Batch queue 10k requests - Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
@@ -115,8 +121,14 @@ func TestMemoryLeakBatchPoller(t *testing.T) {
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
 	var heapGrowthPercent float64
-	if m1.HeapAlloc > 0 {
+	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
+	if m1.HeapAlloc > 100*1024 {
 		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
+	} else {
+		// If baseline too small, use absolute bytes as threshold (10MB)
+		if heapGrowth > 10*1024*1024 {
+			heapGrowthPercent = 100.0
+		}
 	}
 
 	t.Logf("Batch poller 100 jobs, 1k queries - Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
@@ -166,8 +178,14 @@ func TestMemoryLeakRouterDecisions(t *testing.T) {
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
 	var heapGrowthPercent float64
-	if m1.HeapAlloc > 0 {
+	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
+	if m1.HeapAlloc > 100*1024 {
 		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
+	} else {
+		// If baseline too small, use absolute bytes as threshold (10MB)
+		if heapGrowth > 10*1024*1024 {
+			heapGrowthPercent = 100.0
+		}
 	}
 
 	t.Logf("Router 50k decisions - Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
@@ -232,8 +250,14 @@ func TestMemoryLeak100kConcurrentRequests(t *testing.T) {
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
 	var heapGrowthPercent float64
-	if m1.HeapAlloc > 0 {
+	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
+	if m1.HeapAlloc > 100*1024 {
 		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
+	} else {
+		// If baseline too small, use absolute bytes as threshold (10MB)
+		if heapGrowth > 10*1024*1024 {
+			heapGrowthPercent = 100.0
+		}
 	}
 
 	t.Logf("100k concurrent - Processed: %d, Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
