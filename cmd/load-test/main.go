@@ -62,11 +62,11 @@ func main() {
 	fmt.Printf("  Ramp-down: %v\n", config.RampDownDuration)
 	fmt.Printf("  Report Interval: %v\n\n", config.ReportInterval)
 
-	metrics := runLoadTest(config, *verbose)
+	metrics := runLoadTest(config)
 	printFinalReport(metrics, config)
 }
 
-func runLoadTest(config LoadTestConfig, verbose bool) *LoadTestMetrics {
+func runLoadTest(config LoadTestConfig) *LoadTestMetrics {
 	metrics := &LoadTestMetrics{
 		StartTime:    time.Now(),
 		LatencyValues: make([]int64, 0),
@@ -179,7 +179,7 @@ func runLoadTest(config LoadTestConfig, verbose bool) *LoadTestMetrics {
 	// Report metrics periodically
 	go func() {
 		for range tickerChan {
-			printInterimReport(metrics, config)
+			printInterimReport(metrics)
 		}
 	}()
 
@@ -190,7 +190,7 @@ func runLoadTest(config LoadTestConfig, verbose bool) *LoadTestMetrics {
 	return metrics
 }
 
-func printInterimReport(metrics *LoadTestMetrics, config LoadTestConfig) {
+func printInterimReport(metrics *LoadTestMetrics) {
 	metrics.mu.RLock()
 	defer metrics.mu.RUnlock()
 

@@ -22,13 +22,13 @@ func setupBatchHandlers() *BatchHandlers {
 func TestNewBatchHandlers(t *testing.T) {
 	handlers := setupBatchHandlers()
 	if handlers == nil {
-		t.Error("expected non-nil handlers")
+		t.Fatal("expected non-nil handlers")
 	}
 	if handlers.batchQueue == nil {
-		t.Error("expected non-nil queue")
+		t.Fatal("expected non-nil queue")
 	}
 	if handlers.batchPoller == nil {
-		t.Error("expected non-nil poller")
+		t.Fatal("expected non-nil poller")
 	}
 }
 
@@ -241,10 +241,7 @@ func TestSubmitBatchRequestParsing(t *testing.T) {
 
 	// Request body parsing should work (response depends on API, which we're mocking)
 	// We're checking that JSON parsing works without error
-	if w.Code >= 400 && w.Code < 500 {
-		// Client error - but not due to parsing
-		// Could be due to API call failing, which is expected in tests
-	}
+	// A 4xx response may occur if API call fails, which is expected in tests
 }
 
 func TestRegisterBatchRoutes(t *testing.T) {

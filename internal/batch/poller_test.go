@@ -93,12 +93,6 @@ func TestListJobsByStatus(t *testing.T) {
 	bp.TrackJob("job_2", 10)
 
 	// Get reference to jobs to modify status
-	jobs := bp.ListJobs()
-	if len(jobs) >= 1 {
-		// In real scenario, status would be updated by poller
-		// Here we just verify the query works
-	}
-
 	allJobs := bp.ListJobs()
 	if len(allJobs) != 2 {
 		t.Errorf("expected 2 jobs, got %d", len(allJobs))
