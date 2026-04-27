@@ -1,4 +1,4 @@
-# Claude Escalate v0.5.0
+# Claude Escalate
 
 > **Token optimization gateway for Claude API — 40-60% cost savings with knowledge graphs, semantic caching, and intelligent input compression.**
 
