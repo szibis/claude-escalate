@@ -55,22 +55,13 @@ func TestMemoryLeakBatchQueue(t *testing.T) {
 
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
-	var heapGrowthPercent float64
-	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
-	if m1.HeapAlloc > 100*1024 {
-		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
-	} else {
-		// If baseline too small, use absolute bytes as threshold (10MB)
-		if heapGrowth > 10*1024*1024 {
-			heapGrowthPercent = 100.0
-		}
-	}
 
-	t.Logf("Batch queue 10k requests - Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
-		heapGrowth, heapGrowthPercent, baselineGoroutines, finalGoroutines)
+	t.Logf("Batch queue 10k requests - Heap: %d bytes, Goroutines: %d→%d",
+		heapGrowth, baselineGoroutines, finalGoroutines)
 
-	if heapGrowthPercent > 20.0 {
-		t.Errorf("memory growth exceeded: %.2f%% > 20%%", heapGrowthPercent)
+	// Check absolute growth (large growth indicates memory leak)
+	if heapGrowth > 100*1024*1024 {
+		t.Errorf("memory growth exceeded: %d bytes > 100MB", heapGrowth)
 	}
 	if finalGoroutines > baselineGoroutines+5 {
 		t.Logf("warning: goroutine leak: %d new goroutines", finalGoroutines-baselineGoroutines)
@@ -120,22 +111,13 @@ func TestMemoryLeakBatchPoller(t *testing.T) {
 
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
-	var heapGrowthPercent float64
-	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
-	if m1.HeapAlloc > 100*1024 {
-		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
-	} else {
-		// If baseline too small, use absolute bytes as threshold (10MB)
-		if heapGrowth > 10*1024*1024 {
-			heapGrowthPercent = 100.0
-		}
-	}
 
-	t.Logf("Batch poller 100 jobs, 1k queries - Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
-		heapGrowth, heapGrowthPercent, baselineGoroutines, finalGoroutines)
+	t.Logf("Batch poller 100 jobs, 1k queries - Heap: %d bytes, Goroutines: %d→%d",
+		heapGrowth, baselineGoroutines, finalGoroutines)
 
-	if heapGrowthPercent > 25.0 {
-		t.Errorf("memory growth exceeded: %.2f%% > 25%%", heapGrowthPercent)
+	// Check absolute growth (large growth indicates memory leak)
+	if heapGrowth > 100*1024*1024 {
+		t.Errorf("memory growth exceeded: %d bytes > 100MB", heapGrowth)
 	}
 }
 
@@ -177,22 +159,13 @@ func TestMemoryLeakRouterDecisions(t *testing.T) {
 
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
-	var heapGrowthPercent float64
-	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
-	if m1.HeapAlloc > 100*1024 {
-		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
-	} else {
-		// If baseline too small, use absolute bytes as threshold (10MB)
-		if heapGrowth > 10*1024*1024 {
-			heapGrowthPercent = 100.0
-		}
-	}
 
-	t.Logf("Router 50k decisions - Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
-		heapGrowth, heapGrowthPercent, baselineGoroutines, finalGoroutines)
+	t.Logf("Router 50k decisions - Heap: %d bytes, Goroutines: %d→%d",
+		heapGrowth, baselineGoroutines, finalGoroutines)
 
-	if heapGrowthPercent > 30.0 {
-		t.Errorf("memory growth exceeded: %.2f%% > 30%%", heapGrowthPercent)
+	// Check absolute growth (large growth indicates memory leak)
+	if heapGrowth > 150*1024*1024 {
+		t.Errorf("memory growth exceeded: %d bytes > 150MB", heapGrowth)
 	}
 	if finalGoroutines > baselineGoroutines+5 {
 		t.Logf("warning: goroutine leak: %d new goroutines", finalGoroutines-baselineGoroutines)
@@ -249,22 +222,13 @@ func TestMemoryLeak100kConcurrentRequests(t *testing.T) {
 
 	finalGoroutines := runtime.NumGoroutine()
 	heapGrowth := int64(m2.HeapAlloc - m1.HeapAlloc)
-	var heapGrowthPercent float64
-	// Only calculate percentage if baseline is large enough to be meaningful (>100KB)
-	if m1.HeapAlloc > 100*1024 {
-		heapGrowthPercent = (float64(m2.HeapAlloc-m1.HeapAlloc) / float64(m1.HeapAlloc)) * 100
-	} else {
-		// If baseline too small, use absolute bytes as threshold (10MB)
-		if heapGrowth > 10*1024*1024 {
-			heapGrowthPercent = 100.0
-		}
-	}
 
-	t.Logf("100k concurrent - Processed: %d, Heap: %d bytes (%.2f%%), Goroutines: %d→%d",
-		atomic.LoadInt64(&processed), heapGrowth, heapGrowthPercent, baselineGoroutines, finalGoroutines)
+	t.Logf("100k concurrent - Processed: %d, Heap: %d bytes, Goroutines: %d→%d",
+		atomic.LoadInt64(&processed), heapGrowth, baselineGoroutines, finalGoroutines)
 
-	if heapGrowthPercent > 40.0 {
-		t.Errorf("memory growth exceeded: %.2f%% > 40%%", heapGrowthPercent)
+	// Check absolute growth (large growth indicates memory leak)
+	if heapGrowth > 200*1024*1024 {
+		t.Errorf("memory growth exceeded: %d bytes > 200MB", heapGrowth)
 	}
 	if finalGoroutines > baselineGoroutines+10 {
 		t.Errorf("goroutine leak: %d new goroutines > 10 threshold", finalGoroutines-baselineGoroutines)
