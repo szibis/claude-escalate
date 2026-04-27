@@ -41,7 +41,7 @@ func main() {
 	rampUp := flag.Duration("ramp-up", 30*time.Second, "Ramp-up duration")
 	rampDown := flag.Duration("ramp-down", 30*time.Second, "Ramp-down duration")
 	reportInterval := flag.Duration("report", 10*time.Second, "Metrics report interval")
-	verbose := flag.Bool("v", false, "Verbose output")
+	_ = flag.Bool("v", false, "Verbose output")
 
 	flag.Parse()
 
