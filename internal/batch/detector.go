@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// BatchDecision represents a decision on whether to batch a request
-type BatchDecision struct {
-	ShouldBatch  bool
-	Confidence   float64 // 0.0-1.0
-	Reason       string
+// WorkloadDetectionResult represents the output of workload detection analysis
+type WorkloadDetectionResult struct {
+	ShouldBatch       bool
+	Confidence        float64       // 0.0-1.0
+	Reason            string
 	EstimatedWaitTime time.Duration
 }
 
@@ -50,14 +50,14 @@ func NewNonInteractiveDetector() *NonInteractiveDetector {
 }
 
 // IsNonInteractive evaluates if a request is non-interactive and suitable for batching
-func (nid *NonInteractiveDetector) IsNonInteractive(ctx context.Context, query string, intent string) BatchDecision {
+func (nid *NonInteractiveDetector) IsNonInteractive(ctx context.Context, query string, intent string) WorkloadDetectionResult {
 	nid.mu.Lock()
 	defer nid.mu.Unlock()
 
 	now := time.Now()
 	nid.recordRequest(now)
 
-	decision := BatchDecision{
+	decision := WorkloadDetectionResult{
 		ShouldBatch: false,
 		Confidence:  0.0,
 		Reason:      "Interactive request",
@@ -274,7 +274,7 @@ func NewWorkloadAnalyzer() *WorkloadAnalyzer {
 }
 
 // AnalyzeRequest returns a comprehensive decision on batch eligibility
-func (wa *WorkloadAnalyzer) AnalyzeRequest(ctx context.Context, query string, intent string, estimatedTokens int, responseTimeExpectation time.Duration) BatchDecision {
+func (wa *WorkloadAnalyzer) AnalyzeRequest(ctx context.Context, query string, intent string, estimatedTokens int, responseTimeExpectation time.Duration) WorkloadDetectionResult {
 	// Get non-interactive detection result
 	decision := wa.detector.IsNonInteractive(ctx, query, intent)
 
