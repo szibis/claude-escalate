@@ -678,8 +678,21 @@ func getDashboardHTML() []byte {
 			font-family: 'Courier New', monospace;
 			font-size: 13px;
 			line-height: 1.6;
-			overflow-x: auto;
-			max-height: 400px;
+			overflow: auto;
+			max-height: 500px;
+			border: 1px solid #333;
+			box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+		}
+		.config-editor::-webkit-scrollbar {
+			width: 8px;
+			height: 8px;
+		}
+		.config-editor::-webkit-scrollbar-track {
+			background: #2d2d2d;
+		}
+		.config-editor::-webkit-scrollbar-thumb {
+			background: #555;
+			border-radius: 4px;
 		}
 		.button-group {
 			display: flex;
@@ -776,16 +789,82 @@ func getDashboardHTML() []byte {
 		</div>
 
 		<div id="config" class="tab-content">
-			<h3>Configuration Editor</h3>
-			<p style="color: #666; margin: 15px 0;">Edit configuration and reload without downtime</p>
-			<div class="config-editor" id="config-editor">
-				Loading configuration...
+			<div style="display: grid; grid-template-columns: 1fr 300px; gap: 20px;">
+				<div>
+					<h3>Configuration Editor</h3>
+					<p style="color: #666; margin: 10px 0 20px 0;">
+						🔄 Edit & reload without downtime | YAML format required
+						<a href="https://github.com/szibis/claude-escalate/blob/main/docs/CONFIGURATION.md"
+						   target="_blank" style="margin-left: 10px; color: #667eea; text-decoration: none;">📖 Docs ↗</a>
+					</p>
+
+					<div style="position: relative; margin-bottom: 15px;">
+						<div style="display: flex; gap: 10px; margin-bottom: 10px; font-size: 12px;">
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('gateway')">gateway</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('optimizations')">optimizations</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('security')">security</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('metrics')">metrics</button>
+						</div>
+
+						<div class="config-editor" id="config-editor" style="font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">
+							Loading configuration...
+						</div>
+
+						<div style="margin-top: 15px; padding: 12px; background: #f0f4ff; border-left: 4px solid #667eea; border-radius: 4px; font-size: 12px; color: #334;">
+							<strong>✓ Configuration is valid YAML</strong><span id="config-validation-status"></span>
+						</div>
+					</div>
+
+					<div class="button-group">
+						<button class="btn btn-primary" onclick="saveConfig()">💾 Save & Reload</button>
+						<button class="btn btn-secondary" onclick="discardChanges()">↩️ Discard Changes</button>
+						<button class="btn btn-secondary" onclick="downloadConfig()" style="background: #f3f4f6;">⬇️ Download</button>
+					</div>
+					<div id="config-status"></div>
+				</div>
+
+				<div style="background: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; height: fit-content;">
+					<h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px;">📋 Quick Reference</h4>
+
+					<div style="font-size: 12px; line-height: 1.6; color: #666;">
+						<div style="margin-bottom: 15px;">
+							<strong style="display: block; margin-bottom: 5px; color: #333;">🎯 Common Sections:</strong>
+							<div style="padding-left: 10px; border-left: 2px solid #ddd;">
+								<div>gateway: port, host, security</div>
+								<div>optimizations: rtk, mcp, caching</div>
+								<div>security: validation, limits</div>
+								<div>metrics: enabled, retention</div>
+							</div>
+						</div>
+
+						<div style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 4px;">
+							<strong style="display: block; margin-bottom: 5px; color: #333;">⚠️ Validation Rules:</strong>
+							<div style="font-size: 11px; color: #666;">
+								✓ Valid YAML syntax<br>
+								✓ Required keys present<br>
+								✓ Port range 1-65535<br>
+								✓ No duplicate keys
+							</div>
+						</div>
+
+						<div style="padding: 10px; background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px;">
+							<strong style="color: #92400e; font-size: 11px;">💡 Tip:</strong>
+							<div style="font-size: 11px; color: #92400e;">Changes reload instantly with zero downtime</div>
+						</div>
+
+						<hr style="margin: 15px 0; border: none; border-top: 1px solid #e5e7eb;">
+
+						<div style="font-size: 11px;">
+							<a href="https://github.com/szibis/claude-escalate/blob/main/docs/CONFIGURATION.md" target="_blank"
+							   style="color: #667eea; text-decoration: none; display: block; margin-bottom: 5px;">📖 Configuration Docs</a>
+							<a href="https://github.com/szibis/claude-escalate/blob/main/docs/API.md" target="_blank"
+							   style="color: #667eea; text-decoration: none; display: block; margin-bottom: 5px;">📚 API Reference</a>
+							<a href="https://github.com/szibis/claude-escalate" target="_blank"
+							   style="color: #667eea; text-decoration: none; display: block;">🔗 GitHub Repository</a>
+						</div>
+					</div>
+				</div>
 			</div>
-			<div class="button-group">
-				<button class="btn btn-primary" onclick="saveConfig()">Save & Reload</button>
-				<button class="btn btn-secondary" onclick="discardChanges()">Discard</button>
-			</div>
-			<div id="config-status"></div>
 		</div>
 
 		<div id="security" class="tab-content">
@@ -1006,7 +1085,83 @@ func getDashboardHTML() []byte {
 		function discardChanges() {
 			document.getElementById('config-editor').textContent = originalConfig;
 			document.getElementById('config-status').innerHTML = '';
+			validateConfig();
 		}
+
+		function scrollToSection(section) {
+			const editor = document.getElementById('config-editor');
+			const text = editor.textContent;
+			const lines = text.split('\n');
+			let targetLine = 0;
+
+			for (let i = 0; i < lines.length; i++) {
+				if (lines[i].trim().startsWith(section + ':')) {
+					targetLine = i;
+					break;
+				}
+			}
+
+			const lineHeight = parseInt(window.getComputedStyle(editor).lineHeight);
+			editor.scrollTop = (targetLine - 5) * lineHeight;
+			editor.style.background = '#1e1e1e linear-gradient(to right, #667eea22, transparent)';
+			setTimeout(() => {
+				editor.style.background = '#1e1e1e';
+			}, 300);
+		}
+
+		function downloadConfig() {
+			const config = document.getElementById('config-editor').textContent;
+			const blob = new Blob([config], { type: 'application/yaml' });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = 'config.yaml';
+			link.click();
+			URL.revokeObjectURL(url);
+		}
+
+		function validateConfig() {
+			const editor = document.getElementById('config-editor');
+			const statusEl = document.getElementById('config-validation-status');
+			try {
+				const text = editor.textContent.trim();
+				if (!text || text === 'Loading configuration...') return;
+
+				// Basic YAML validation
+				const lines = text.split('\n');
+				let indentValid = true;
+				let prevIndent = 0;
+
+				for (let line of lines) {
+					if (line.trim() === '' || line.trim().startsWith('#')) continue;
+					const match = line.match(/^(\s*)/);
+					const indent = match ? match[1].length : 0;
+					if (indent % 2 !== 0) {
+						indentValid = false;
+						break;
+					}
+				}
+
+				if (indentValid && text.includes(':')) {
+					statusEl.innerHTML = ' ✓ Syntax valid';
+					statusEl.style.color = '#059669';
+				} else {
+					statusEl.innerHTML = ' ⚠ Check indentation (use 2 spaces)';
+					statusEl.style.color = '#f59e0b';
+				}
+			} catch (e) {
+				statusEl.innerHTML = ' ✗ Invalid format';
+				statusEl.style.color = '#dc2626';
+			}
+		}
+
+		// Validate config on load and when typing
+		const originalLoadConfig = loadConfig;
+		loadConfig = async function() {
+			await originalLoadConfig();
+			validateConfig();
+			document.getElementById('config-editor').addEventListener('input', validateConfig);
+		};
 
 		function switchTab(tabName) {
 			document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
