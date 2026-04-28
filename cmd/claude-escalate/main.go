@@ -263,7 +263,7 @@ func handleDeEscalate(db *store.Store, currentModel, taskType string) {
 
 func runDashboard() {
 	port := 8077
-	bind := "127.0.0.1"
+	bind := "0.0.0.0"
 	for i, arg := range os.Args {
 		if arg == "--port" && i+1 < len(os.Args) {
 			_, _ = fmt.Sscanf(os.Args[i+1], "%d", &port)
@@ -430,7 +430,7 @@ func runService() {
 		os.Exit(1)
 	}
 
-	addr := "127.0.0.1:" + port
+	addr := "0.0.0.0:" + port
 	if err := svc.Start(addr); err != nil {
 		fmt.Fprintf(os.Stderr, "Service error: %v\n", err)
 		os.Exit(1)
