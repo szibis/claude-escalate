@@ -793,77 +793,45 @@ func getDashboardHTML() []byte {
 				<div>
 					<h3>Configuration Editor</h3>
 					<p style="color: #666; margin: 10px 0 20px 0;">
-						🔄 Edit & reload without downtime | YAML format required
+						🔄 Edit & reload without downtime | YAML format | Live validation
 						<a href="https://github.com/szibis/claude-escalate/blob/main/docs/CONFIGURATION.md"
 						   target="_blank" style="margin-left: 10px; color: #667eea; text-decoration: none;">📖 Docs ↗</a>
 					</p>
 
 					<div style="position: relative; margin-bottom: 15px;">
-						<div style="display: flex; gap: 10px; margin-bottom: 10px; font-size: 12px;">
-							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('gateway')">gateway</button>
-							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('optimizations')">optimizations</button>
-							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('security')">security</button>
-							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="scrollToSection('metrics')">metrics</button>
+						<div style="display: flex; gap: 10px; margin-bottom: 10px; font-size: 12px; flex-wrap: wrap;">
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="quickJump('gateway')">gateway</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="quickJump('optimizations')">optimizations</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="quickJump('security')">security</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="quickJump('metrics')">metrics</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="quickJump('thresholds')">thresholds</button>
+							<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="quickJump('models')">models</button>
 						</div>
 
-						<div class="config-editor" id="config-editor" style="font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">
-							Loading configuration...
-						</div>
+						<div style="display: grid; grid-template-columns: 1fr 280px; gap: 15px;">
+							<div>
+								<textarea id="config-editor" style="width: 100%; height: 500px; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; border: 1px solid #ddd; border-radius: 6px; padding: 12px; resize: vertical; background: #1e1e1e; color: #d4d4d4;" onkeyup="updateConfigHints(); validateConfig();"></textarea>
 
-						<div style="margin-top: 15px; padding: 12px; background: #f0f4ff; border-left: 4px solid #667eea; border-radius: 4px; font-size: 12px; color: #334;">
-							<strong>✓ Configuration is valid YAML</strong><span id="config-validation-status"></span>
+								<div style="margin-top: 15px; padding: 12px; background: #f0f4ff; border-left: 4px solid #667eea; border-radius: 4px; font-size: 12px; color: #334;">
+									<strong>✓ Configuration is valid YAML</strong><span id="config-validation-status"></span>
+								</div>
+							</div>
+
+							<div id="config-hints" style="background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 11px; line-height: 1.5; overflow-y: auto; height: 520px;">
+								<div style="color: #999; text-align: center; padding-top: 20px;">Select a config line to see hints</div>
+							</div>
 						</div>
 					</div>
 
 					<div class="button-group">
 						<button class="btn btn-primary" onclick="saveConfig()">💾 Save & Reload</button>
-						<button class="btn btn-secondary" onclick="discardChanges()">↩️ Discard Changes</button>
+						<button class="btn btn-secondary" onclick="discardChanges()">↩️ Discard</button>
+						<button class="btn btn-secondary" onclick="resetConfig()" style="background: #fee2e2; color: #991b1b;">🔄 Reset</button>
 						<button class="btn btn-secondary" onclick="downloadConfig()" style="background: #f3f4f6;">⬇️ Download</button>
 					</div>
 					<div id="config-status"></div>
 				</div>
 
-				<div style="background: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; height: fit-content;">
-					<h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px;">📋 Quick Reference</h4>
-
-					<div style="font-size: 12px; line-height: 1.6; color: #666;">
-						<div style="margin-bottom: 15px;">
-							<strong style="display: block; margin-bottom: 5px; color: #333;">🎯 Common Sections:</strong>
-							<div style="padding-left: 10px; border-left: 2px solid #ddd;">
-								<div>gateway: port, host, security</div>
-								<div>optimizations: rtk, mcp, caching</div>
-								<div>security: validation, limits</div>
-								<div>metrics: enabled, retention</div>
-							</div>
-						</div>
-
-						<div style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 4px;">
-							<strong style="display: block; margin-bottom: 5px; color: #333;">⚠️ Validation Rules:</strong>
-							<div style="font-size: 11px; color: #666;">
-								✓ Valid YAML syntax<br>
-								✓ Required keys present<br>
-								✓ Port range 1-65535<br>
-								✓ No duplicate keys
-							</div>
-						</div>
-
-						<div style="padding: 10px; background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px;">
-							<strong style="color: #92400e; font-size: 11px;">💡 Tip:</strong>
-							<div style="font-size: 11px; color: #92400e;">Changes reload instantly with zero downtime</div>
-						</div>
-
-						<hr style="margin: 15px 0; border: none; border-top: 1px solid #e5e7eb;">
-
-						<div style="font-size: 11px;">
-							<a href="https://github.com/szibis/claude-escalate/blob/main/docs/CONFIGURATION.md" target="_blank"
-							   style="color: #667eea; text-decoration: none; display: block; margin-bottom: 5px;">📖 Configuration Docs</a>
-							<a href="https://github.com/szibis/claude-escalate/blob/main/docs/API.md" target="_blank"
-							   style="color: #667eea; text-decoration: none; display: block; margin-bottom: 5px;">📚 API Reference</a>
-							<a href="https://github.com/szibis/claude-escalate" target="_blank"
-							   style="color: #667eea; text-decoration: none; display: block;">🔗 GitHub Repository</a>
-						</div>
-					</div>
-				</div>
 			</div>
 		</div>
 
@@ -1054,18 +1022,51 @@ func getDashboardHTML() []byte {
 			try {
 				const response = await fetch('/api/config');
 				const data = await response.json();
-				originalConfig = JSON.stringify(data.config, null, 2);
-				document.getElementById('config-editor').textContent = originalConfig;
+				const yaml = configToYAML(data.config);
+				originalConfig = yaml;
+				document.getElementById('config-editor').value = yaml;
+				validateConfig();
 			} catch (err) {
 				console.error('Error loading config:', err);
-				document.getElementById('config-editor').textContent = 'Error loading configuration';
+				document.getElementById('config-editor').value = 'Error loading configuration';
 			}
+		}
+
+		function configToYAML(obj, indent = 0) {
+			const prefix = '  '.repeat(indent);
+			let yaml = '';
+			for (const [key, value] of Object.entries(obj)) {
+				if (value === null || value === undefined) continue;
+				yaml += prefix + key + ': ';
+				if (typeof value === 'object' && !Array.isArray(value)) {
+					yaml += '\n' + configToYAML(value, indent + 1);
+				} else if (Array.isArray(value)) {
+					if (value.length === 0) {
+						yaml += '[]\n';
+					} else if (typeof value[0] === 'object') {
+						yaml += '\n';
+						value.forEach(item => {
+							yaml += prefix + '  - ' + (typeof item === 'object' ? JSON.stringify(item) : item) + '\n';
+						});
+					} else {
+						yaml += JSON.stringify(value) + '\n';
+					}
+				} else if (typeof value === 'string' && (value.includes('\n') || value.includes(':'))) {
+					yaml += JSON.stringify(value) + '\n';
+				} else if (typeof value === 'boolean') {
+					yaml += (value ? 'true' : 'false') + '\n';
+				} else {
+					yaml += value + '\n';
+				}
+			}
+			return yaml;
 		}
 
 		async function saveConfig() {
 			const editor = document.getElementById('config-editor');
 			try {
-				const config = JSON.parse(editor.textContent);
+				const yamlText = editor.value;
+				const config = parseYAMLToConfig(yamlText);
 				const response = await fetch('/api/config', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -1075,42 +1076,123 @@ func getDashboardHTML() []byte {
 				if (response.ok) {
 					await fetch('/api/config/reload');
 					document.getElementById('config-status').innerHTML = '<div class="status"><div class="status-dot"></div><span>✓ Configuration reloaded (0 downtime)</span></div>';
-					originalConfig = editor.textContent;
+					originalConfig = yamlText;
+					setTimeout(() => {
+						document.getElementById('config-status').innerHTML = '';
+					}, 5000);
 				}
 			} catch (err) {
 				document.getElementById('config-status').innerHTML = '<div class="status" style="background: #fee2e2; color: #991b1b;"><span>✗ Error: ' + err.message + '</span></div>';
 			}
 		}
 
+		function parseYAMLToConfig(yamlText) {
+			const config = {};
+			const lines = yamlText.split('\n');
+			const stack = [config];
+			const indentStack = [-1];
+
+			for (let line of lines) {
+				if (!line.trim() || line.trim().startsWith('#')) continue;
+				const match = line.match(/^(\s*)(.*?):\s*(.*?)$/);
+				if (!match) continue;
+
+				const indent = match[1].length / 2;
+				const key = match[2];
+				const value = match[3].trim();
+
+				while (indentStack.length > 1 && indent <= indentStack[indentStack.length - 1]) {
+					stack.pop();
+					indentStack.pop();
+				}
+
+				const current = stack[stack.length - 1];
+				if (value === '') {
+					current[key] = {};
+					stack.push(current[key]);
+					indentStack.push(indent);
+				} else if (value === 'true') {
+					current[key] = true;
+				} else if (value === 'false') {
+					current[key] = false;
+				} else if (!isNaN(value)) {
+					current[key] = parseFloat(value);
+				} else if (value.startsWith('[') && value.endsWith(']')) {
+					current[key] = JSON.parse(value);
+				} else {
+					current[key] = value.replace(/^['"]+|['"]+$/g, '');
+				}
+			}
+
+			return config;
+		}
+
 		function discardChanges() {
-			document.getElementById('config-editor').textContent = originalConfig;
+			document.getElementById('config-editor').value = originalConfig;
 			document.getElementById('config-status').innerHTML = '';
 			validateConfig();
 		}
 
-		function scrollToSection(section) {
+		function resetConfig() {
+			if (confirm('Reset configuration to defaults? This cannot be undone.')) {
+				location.reload();
+			}
+		}
+
+		function quickJump(section) {
 			const editor = document.getElementById('config-editor');
-			const text = editor.textContent;
+			const text = editor.value;
 			const lines = text.split('\n');
-			let targetLine = 0;
+			let targetIndex = 0;
+			let charCount = 0;
 
 			for (let i = 0; i < lines.length; i++) {
 				if (lines[i].trim().startsWith(section + ':')) {
-					targetLine = i;
+					targetIndex = charCount;
 					break;
 				}
+				charCount += lines[i].length + 1;
 			}
 
-			const lineHeight = parseInt(window.getComputedStyle(editor).lineHeight);
-			editor.scrollTop = (targetLine - 5) * lineHeight;
-			editor.style.background = '#1e1e1e linear-gradient(to right, #667eea22, transparent)';
-			setTimeout(() => {
-				editor.style.background = '#1e1e1e';
-			}, 300);
+			editor.focus();
+			editor.setSelectionRange(targetIndex, targetIndex + section.length);
+			editor.scrollTop = (targetIndex / text.length) * editor.scrollHeight;
+			updateConfigHints();
+		}
+
+		function updateConfigHints() {
+			const editor = document.getElementById('config-editor');
+			const hintsPanel = document.getElementById('config-hints');
+			const text = editor.value;
+			const selectionStart = editor.selectionStart;
+
+			const line = text.substring(0, selectionStart).split('\n').pop();
+			const key = line.split(':')[0].trim();
+
+			const hints = getConfigHints(key);
+			hintsPanel.innerHTML = hints || '<div style="color: #999;">No hints available for this field</div>';
+		}
+
+		function getConfigHints(key) {
+			const hintMap = {
+				'gateway': '<strong>Gateway Configuration</strong><div style="margin-top: 8px; font-size: 10px; color: #666; line-height: 1.6;">The HTTP server configuration for the dashboard and API.<br><br><strong>port:</strong> HTTP port (1-65535)<br><strong>host:</strong> Bind address (0.0.0.0 for all interfaces)<br><strong>security_layer:</strong> Enable security checks</div>',
+				'port': '<strong>Gateway Port</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Port for dashboard and API access. Use 8077 for dashboard, 9000 for API service.</div>',
+				'host': '<strong>Bind Address</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">0.0.0.0 = all interfaces, 127.0.0.1 = localhost only, specific IP = bind to that interface</div>',
+				'optimizations': '<strong>Model Optimizations</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Optimization layers: RTK (token savings), MCP (tools), semantic cache, knowledge graph, batch API</div>',
+				'rtk': '<strong>RTK Configuration</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Real Token Killer - reduces command output by 99.4%<br><br><strong>enabled:</strong> true/false<br><strong>command_proxy_savings:</strong> Expected savings percentage</div>',
+				'mcp': '<strong>MCP Tools</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Model Context Protocol - manages Scrapling, LSP servers, and custom tools<br><br><strong>enabled:</strong> true/false<br><strong>tools:</strong> List of configured MCP tools</div>',
+				'semantic_cache': '<strong>Semantic Cache</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Cache similar requests (85%+ match)<br><br><strong>similarity_threshold:</strong> 0.0-1.0 (0.85 = 85% match)<br><strong>hit_rate_target:</strong> Cache hit rate goal</div>',
+				'security': '<strong>Security Configuration</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">SQL injection, XSS, command injection detection<br><br><strong>sql_injection_detection:</strong> true/false<br><strong>xss_prevention:</strong> true/false<br><strong>rate_limiting:</strong> Requests per minute</div>',
+				'metrics': '<strong>Metrics & Monitoring</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Collect and publish performance metrics<br><br><strong>enabled:</strong> true/false<br><strong>publish_to:</strong> Prometheus, Grafana, CloudWatch, debug logs</div>',
+				'thresholds': '<strong>Decision Thresholds</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Confidence scores for escalation decisions<br><br><strong>cache_similarity:</strong> 0.85 = require 85% match<br><strong>model_accuracy:</strong> 0.85 = 85% confidence minimum</div>',
+				'models': '<strong>Model Configurations</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Claude model details, pricing, and context window sizes<br><br><strong>id:</strong> Model identifier<br><strong>cost_per_1k_input:</strong> Cost per 1000 input tokens<br><strong>context_window:</strong> Max tokens supported</div>'
+			};
+
+			return hintMap[key] || '';
 		}
 
 		function downloadConfig() {
-			const config = document.getElementById('config-editor').textContent;
+			const config = document.getElementById('config-editor').value;
 			const blob = new Blob([config], { type: 'application/yaml' });
 			const url = URL.createObjectURL(blob);
 			const link = document.createElement('a');
@@ -1124,33 +1206,35 @@ func getDashboardHTML() []byte {
 			const editor = document.getElementById('config-editor');
 			const statusEl = document.getElementById('config-validation-status');
 			try {
-				const text = editor.textContent.trim();
+				const text = editor.value.trim();
 				if (!text || text === 'Loading configuration...') return;
 
 				// Basic YAML validation
 				const lines = text.split('\n');
 				let indentValid = true;
-				let prevIndent = 0;
+				let braceBalance = 0;
 
 				for (let line of lines) {
 					if (line.trim() === '' || line.trim().startsWith('#')) continue;
 					const match = line.match(/^(\s*)/);
 					const indent = match ? match[1].length : 0;
-					if (indent % 2 !== 0) {
+					if (indent % 2 !== 0 && line.trim().length > 0) {
 						indentValid = false;
 						break;
 					}
+					braceBalance += (line.match(/\{/g) || []).length;
+					braceBalance -= (line.match(/\}/g) || []).length;
 				}
 
-				if (indentValid && text.includes(':')) {
+				if (indentValid && braceBalance === 0 && text.includes(':')) {
 					statusEl.innerHTML = ' ✓ Syntax valid';
 					statusEl.style.color = '#059669';
 				} else {
-					statusEl.innerHTML = ' ⚠ Check indentation (use 2 spaces)';
+					statusEl.innerHTML = ' ⚠ Check indentation or braces';
 					statusEl.style.color = '#f59e0b';
 				}
 			} catch (e) {
-				statusEl.innerHTML = ' ✗ Invalid format';
+				statusEl.innerHTML = ' ✗ Invalid format: ' + e.message;
 				statusEl.style.color = '#dc2626';
 			}
 		}
