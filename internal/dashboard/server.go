@@ -55,6 +55,7 @@ func NewServer(
 	// Configuration endpoints
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/config/reload", s.handleReload)
+	mux.HandleFunc("/api/config/spec", s.handleConfigSpec)
 
 	// Metrics endpoints
 	mux.HandleFunc("/api/metrics", s.handleMetrics)
@@ -182,6 +183,20 @@ func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Configuration reloaded (0 downtime)",
+	})
+}
+
+func (s *Server) handleConfigSpec(w http.ResponseWriter, r *http.Request) {
+	spec, err := config.LoadConfigSpec()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error loading config spec: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"spec":    spec,
 	})
 }
 
@@ -616,6 +631,10 @@ func getDashboardHTML() []byte {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Claude Escalate Control Panel</title>
+	<!-- Prism.js for YAML syntax highlighting -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-dark.min.css">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
 	<style>
 		* { margin: 0; padding: 0; box-sizing: border-box; }
 		body {
@@ -1236,27 +1255,81 @@ func getDashboardHTML() []byte {
 		}
 
 		function getConfigHints(key) {
-			const hintMap = {
-				'gateway': '<strong>🚀 Gateway Configuration</strong><div style="margin-top: 8px; font-size: 10px; color: #666; line-height: 1.6;">HTTP server for dashboard and API.<br><br><strong>port:</strong> 1-65535 (8077 for dashboard, 9000 for API)<br><strong>host:</strong> 0.0.0.0=all interfaces, 127.0.0.1=localhost<br><strong>security_layer:</strong> Enable security validation<br><strong>max_request_size:</strong> Max upload size in bytes</div>',
-				'port': '<strong>🔌 HTTP Port</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Port number for dashboard/API access. Default: 8077 (dashboard), 9000 (service)</div>',
-				'host': '<strong>📍 Bind Address</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">0.0.0.0 = accessible from all interfaces (Docker), 127.0.0.1 = localhost only</div>',
-				'optimizations': '<strong>⚡ Model Optimizations</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Token and latency optimization layers<br>• RTK: 99.4% output reduction<br>• MCP: Tool integration<br>• Semantic Cache: 85%+ similarity matching<br>• Knowledge Graph: Code/content indexing<br>• Batch API: 50% cost savings</div>',
-				'rtk': '<strong>🎯 RTK Configuration</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Real Token Killer reduces CLI output by ~99.4%<br><br><strong>enabled:</strong> auto-detects from PATH<br><strong>command_proxy_savings:</strong> Percent savings (99.4)<br><strong>cache_savings:</strong> Cache command results</div>',
-				'mcp': '<strong>🔧 MCP Tools</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Model Context Protocol manages tools<br>• Scrapling (web scraping)<br>• LSP servers (code navigation)<br>• Git, REST APIs, databases<br><br><strong>enabled:</strong> true/false<br><strong>tools:</strong> Array of tool configs</div>',
-				'semantic_cache': '<strong>💾 Semantic Cache</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Caches semantically similar requests<br><br><strong>similarity_threshold:</strong> 0.85 = 85% match required<br><strong>hit_rate_target:</strong> Goal hit rate (%)<br><strong>max_cache_size:</strong> Entries to keep</div>',
-				'knowledge_graph': '<strong>📚 Knowledge Graph</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Index local code and web content for retrieval<br><br><strong>enabled:</strong> true/false<br><strong>index_local_code:</strong> Index project files<br><strong>index_web_content:</strong> Index fetched pages<br><strong>cache_lookups:</strong> Cache graph queries</div>',
-				'security': '<strong>🔒 Security Configuration</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Input validation and threat detection<br><br><strong>sql_injection_detection:</strong> Detect SQL patterns<br><strong>xss_prevention:</strong> Detect XSS payloads<br><strong>command_injection_detection:</strong> Shell injection<br><strong>rate_limiting:</strong> Requests per minute</div>',
-				'metrics': '<strong>📊 Metrics & Monitoring</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Collect performance metrics<br><br><strong>enabled:</strong> true/false<br><strong>publish_to:</strong> Prometheus, Grafana, CloudWatch, debug logs<br><strong>retention_days:</strong> How long to keep metrics</div>',
-				'thresholds': '<strong>📈 Decision Thresholds</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Confidence scores for escalation<br><br><strong>cache_similarity:</strong> 0.85 = 85% match<br><strong>model_accuracy:</strong> Min accuracy score<br><strong>confidence_scores:</strong> High/Medium/Low ranges</div>',
-				'models': '<strong>🤖 Model Configurations</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Claude model specs and pricing<br><br><strong>id:</strong> Model identifier<br><strong>cost_per_1k_input:</strong> $/1000 tokens<br><strong>context_window:</strong> Max tokens (200k)</div>',
-				'enabled': '<strong>✓ Enable/Disable</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">true or false. Controls whether this feature is active.</div>',
-				'timeout': '<strong>⏱ Timeout (ms)</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Maximum wait time in milliseconds before operation fails.</div>',
-				'cache': '<strong>💾 Cache Setting</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Enable caching for this component to improve performance.</div>',
-				'threshold': '<strong>📊 Threshold Value</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Numeric threshold for decision-making. Usually 0.0-1.0 for scores.</div>',
-				'rate': '<strong>📈 Rate Limit</strong><div style="margin-top: 8px; font-size: 10px; color: #666;">Requests per minute or time-based limit.</div>'
-			};
+			if (!configSpec || !configSpec.sections) {
+				return '';
+			}
 
-			return hintMap[key] || '';
+			// Search for the key in all sections
+			for (const [sectionName, section] of Object.entries(configSpec.sections)) {
+				// Check if key matches section name
+				if (sectionName === key && section.title) {
+					return '<strong>' + (section.icon || '📋') + ' ' + section.title + '</strong>' +
+						   '<div style="margin-top: 8px; font-size: 10px; color: #666; line-height: 1.6;">' +
+						   (section.description || '') + '</div>';
+				}
+
+				// Check if key is an option in this section
+				if (section.options && section.options[key]) {
+					const option = section.options[key];
+					return formatSpecOption(key, option);
+				}
+
+				// Check nested sections (rtk, mcp, etc.)
+				for (const [subName, subSection] of Object.entries(section.options || {})) {
+					if (typeof subSection === 'object' && subSection !== null) {
+						if (subName === key && subSection.title) {
+							return '<strong>' + (subSection.icon || '') + ' ' + subSection.title + '</strong>' +
+								   '<div style="margin-top: 8px; font-size: 10px; color: #666; line-height: 1.6;">' +
+								   (subSection.description || '') + '</div>';
+						}
+
+						if (subSection.options && subSection.options[key]) {
+							return formatSpecOption(key, subSection.options[key]);
+						}
+					}
+				}
+			}
+
+			return '';
+		}
+
+		function formatSpecOption(name, option) {
+			if (typeof option !== 'object' || !option) {
+				return '';
+			}
+
+			let html = '<strong>' + (option.title || name) + '</strong>';
+			html += '<div style="margin-top: 8px; font-size: 10px; color: #666; line-height: 1.6;">';
+
+			if (option.description) {
+				html += option.description + '<br>';
+			}
+
+			if (option.type) {
+				html += '<br><strong>Type:</strong> ' + option.type;
+				if (option.unit) {
+					html += ' (' + option.unit + ')';
+				}
+				html += '<br>';
+			}
+
+			if (option.default !== undefined && option.default !== null) {
+				html += '<strong>Default:</strong> ' + option.default + '<br>';
+			}
+
+			if (option.options && Array.isArray(option.options)) {
+				html += '<br><strong>Options:</strong><br>';
+				option.options.forEach(opt => {
+					html += '• ' + opt.value + ': ' + opt.desc + '<br>';
+				});
+			}
+
+			if (option.min !== undefined && option.max !== undefined) {
+				html += '<br><strong>Range:</strong> ' + option.min + ' - ' + option.max + '<br>';
+			}
+
+			html += '</div>';
+			return html;
 		}
 
 		function downloadConfig() {
@@ -1307,10 +1380,25 @@ func getDashboardHTML() []byte {
 			}
 		}
 
+		// Load configuration spec from API
+		let configSpec = {};
+		async function loadConfigSpec() {
+			try {
+				const response = await fetch('/api/config/spec');
+				const data = await response.json();
+				if (data.success && data.spec) {
+					configSpec = data.spec;
+				}
+			} catch (err) {
+				console.error('Error loading config spec:', err);
+			}
+		}
+
 		// Validate config on load and when typing
 		const originalLoadConfig = loadConfig;
 		loadConfig = async function() {
 			await originalLoadConfig();
+			await loadConfigSpec();
 			validateConfig();
 			document.getElementById('config-editor').addEventListener('input', validateConfig);
 		};
@@ -1569,6 +1657,63 @@ func getDashboardHTML() []byte {
 		}
 
 		// Load metrics every second
+		// YAML Syntax Highlighting with live parsing
+		function highlightYAML(text) {
+			if (!text) return '';
+
+			const lines = text.split('\n');
+			const highlighted = lines.map(line => {
+				// Comments
+				if (line.trim().startsWith('#')) {
+					return '<span style="color: #608b4e;">' + escapeHTML(line) + '</span>';
+				}
+
+				// Keys and values
+				const match = line.match(/^(\s*)([^:]+):\s*(.*?)$/);
+				if (match) {
+					const indent = match[1];
+					const key = match[2];
+					const value = match[3];
+
+					let colored = '<span style="color: #d4d4d4;">' + escapeHTML(indent) + '</span>';
+					colored += '<span style="color: #9cdcfe;">' + escapeHTML(key) + '</span>';
+					colored += '<span style="color: #d4d4d4;">: </span>';
+
+					if (value === 'true' || value === 'false') {
+						colored += '<span style="color: #569cd6;">' + value + '</span>';
+					} else if (!isNaN(value) && value !== '') {
+						colored += '<span style="color: #b5cea8;">' + value + '</span>';
+					} else if (value.startsWith('[') && value.endsWith(']')) {
+						colored += '<span style="color: #ce9178;">' + escapeHTML(value) + '</span>';
+					} else if (value.startsWith('"') && value.endsWith('"')) {
+						colored += '<span style="color: #ce9178;">' + escapeHTML(value) + '</span>';
+					} else {
+						colored += '<span style="color: #ce9178;">' + escapeHTML(value) + '</span>';
+					}
+
+					return colored;
+				}
+
+				return '<span style="color: #d4d4d4;">' + escapeHTML(line) + '</span>';
+			}).join('<br>');
+
+			return highlighted;
+		}
+
+		function escapeHTML(text) {
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
+		}
+
+		// Apply syntax highlighting to editor
+		const editor = document.getElementById('config-editor');
+		if (editor) {
+			editor.addEventListener('input', function() {
+				validateConfig();
+			});
+		}
+
 		setInterval(loadMetrics, 1000);
 
 		// Initial load
