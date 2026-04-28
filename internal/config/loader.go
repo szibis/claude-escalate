@@ -3,17 +3,53 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/szibis/claude-escalate/internal/discovery"
 )
 
+// expandHome expands ~ to user home directory
+func expandHome(path string) string {
+	if !strings.HasPrefix(path, "~") {
+		return path
+	}
+	usr, err := user.Current()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(usr.HomeDir, path[1:])
+}
+
+// isToolAvailable checks if tool exists in PATH
+func isToolAvailable(toolName string) bool {
+	_, err := exec.LookPath(toolName)
+	return err == nil
+}
+
+// DefaultConfig returns config with auto-detected tools
+func DefaultConfig() *Config {
+	return &Config{
+		Gateway: GatewayConfig{
+			Port:            8077,
+			Host:            "0.0.0.0",
+			SecurityLayer:   true,
+			ShutdownTimeout: 30,
+			MaxRequestSize:  10485760,
+			DataDir:         expandHome("~/.claude-escalate/data"),
+		},
+	}
+}
+
 // Loader handles loading and managing configuration
 type Loader struct {
 	configPath string
 	config     *Config
+	loadedPath string
 }
 
 // NewLoader creates a new configuration loader
@@ -21,6 +57,11 @@ func NewLoader(configPath string) *Loader {
 	return &Loader{
 		configPath: configPath,
 	}
+}
+
+// GetLoadedPath returns the path of the config file that was loaded
+func (l *Loader) GetLoadedPath() string {
+	return l.loadedPath
 }
 
 // Load loads configuration from file, auto-detecting tools if no config exists
@@ -37,6 +78,21 @@ func (l *Loader) Load() (*Config, error) {
 		"./config.yaml",
 		"./configs/config.yaml",
 		expandHome("~/.claude-escalate/config.yaml"),
+	}
+
+	// Add CONFIG_FILE environment variable if set
+	if envPath := os.Getenv("CONFIG_FILE"); envPath != "" {
+		// Check if it's not already in the default paths
+		found := false
+		for _, p := range defaultPaths {
+			if p == envPath {
+				found = true
+				break
+			}
+		}
+		if !found {
+			defaultPaths = append(defaultPaths, envPath)
+		}
 	}
 
 	for _, path := range defaultPaths {
@@ -72,6 +128,7 @@ func (l *Loader) loadFromFile(path string) error {
 	}
 
 	l.config = cfg
+	l.loadedPath = path
 	return nil
 }
 

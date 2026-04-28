@@ -28,7 +28,6 @@ type Server struct {
 	metricsPublisher *metrics.MetricsPublisher
 	httpServer       *http.Server
 	mu               sync.RWMutex
-	configPath       string
 }
 
 // NewServer creates a new dashboard server
@@ -335,6 +334,22 @@ func (s *Server) handleToolsList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fallback: if no tools in config, use known tools
+	if len(tools) == 0 {
+		knownTools := discovery.GetKnownTools()
+		for _, kt := range knownTools {
+			if kt.Available {
+				tools = append(tools, map[string]interface{}{
+					"name":     kt.Name,
+					"type":     kt.Type,
+					"path":     kt.Path,
+					"health":   "ok",
+					"settings": kt.Params,
+				})
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"tools": tools,
@@ -418,7 +433,7 @@ func (s *Server) handleToolsAdd(w http.ResponseWriter, r *http.Request) {
 	cfg.Optimizations.MCP.Tools = append(cfg.Optimizations.MCP.Tools, newTool)
 
 	// Save config (use YAML marshaling)
-	if err := saveConfigToFile(cfg); err != nil {
+	if err := saveConfigToFile(cfg, s.configLoader.GetLoadedPath()); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "Failed to save config: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
@@ -522,14 +537,15 @@ func (s *Server) handleToolEdit(w http.ResponseWriter, r *http.Request, toolName
 	}
 
 	// Save config
-	if err := saveConfigToFile(cfg); err != nil {
+	if err := saveConfigToFile(cfg, s.configLoader.GetLoadedPath()); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "Failed to save config: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 
 	// Reload config
-	s.configLoader = config.NewLoader("")
-	s.configLoader.Load()
+	loader := config.NewLoader(s.configLoader.GetLoadedPath())
+	loader.Load()
+	s.configLoader = loader
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -570,14 +586,15 @@ func (s *Server) handleToolDelete(w http.ResponseWriter, r *http.Request, toolNa
 	}
 
 	// Save config
-	if err := saveConfigToFile(cfg); err != nil {
+	if err := saveConfigToFile(cfg, s.configLoader.GetLoadedPath()); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "Failed to save config: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 
 	// Reload config
-	s.configLoader = config.NewLoader("")
-	s.configLoader.Load()
+	loader := config.NewLoader(s.configLoader.GetLoadedPath())
+	loader.Load()
+	s.configLoader = loader
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -605,31 +622,39 @@ func (s *Server) handleToolsTypes(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper function to save config to file
-func saveConfigToFile(cfg *config.Config) error {
+func saveConfigToFile(cfg *config.Config, optionalPath string) error {
 	// Determine config file path
-	configPath := ""
+	configPath := optionalPath
 
-	// Try to find existing config file first
-	defaultPaths := []string{
-		"./config.yaml",
-		"./configs/config.yaml",
-		expandHome("~/.claude-escalate/config.yaml"),
-	}
+	// If no path provided, try to find existing config file
+	if configPath == "" {
+		defaultPaths := []string{
+			"./config.yaml",
+			"./configs/config.yaml",
+			expandHome("~/.claude-escalate/config.yaml"),
+		}
 
-	for _, path := range defaultPaths {
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-			break
+		for _, path := range defaultPaths {
+			if _, err := os.Stat(path); err == nil {
+				configPath = path
+				break
+			}
 		}
 	}
 
-	// If no existing file, use home directory default
+	// If still no path, use home directory default
 	if configPath == "" {
 		configDir := expandHome("~/.claude-escalate")
 		if err := os.MkdirAll(configDir, 0700); err != nil {
 			return err
 		}
 		configPath = filepath.Join(configDir, "config.yaml")
+	}
+
+	// Ensure directory exists
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return err
 	}
 
 	// Marshal config to YAML
@@ -876,7 +901,7 @@ func getDashboardHTML() []byte {
 
 						<div style="display: grid; grid-template-columns: 1fr 280px; gap: 15px;">
 							<div style="position: relative;">
-								<textarea id="config-editor" style="width: 100%; height: 500px; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; border: 1px solid #ddd; border-radius: 6px; padding: 12px; resize: vertical; background: #1e1e1e; color: #d4d4d4; position: relative; z-index: 2;" onkeyup="updateConfigHints(); validateConfig(); highlightYAMLSyntax();" onmouseup="updateConfigHints();" onclick="updateConfigHints();"></textarea>
+								<textarea id="config-editor" style="width: 100%; height: 500px; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; border: 1px solid #ddd; border-radius: 6px; padding: 12px; resize: vertical; background: transparent; color: #d4d4d4; caret-color: #ffffff; position: relative; z-index: 2; text-shadow: 0 0 10px rgba(100,200,255,0.3);" onkeyup="updateConfigHints(); validateConfig(); highlightYAMLSyntax();" onmouseup="updateConfigHints();" onclick="updateConfigHints();"></textarea>
 								<pre id="config-highlight" style="width: 100%; height: 500px; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; border: 1px solid #ddd; border-radius: 6px; padding: 12px; background: #1e1e1e; color: #d4d4d4; position: absolute; top: 0; left: 0; margin: 0; pointer-events: none; z-index: 1; overflow: hidden; white-space: pre-wrap; word-wrap: break-word;"></pre>
 
 								<div style="margin-top: 15px; padding: 12px; background: #f0f4ff; border-left: 4px solid #667eea; border-radius: 4px; font-size: 12px; color: #334;">
@@ -1227,8 +1252,12 @@ func getDashboardHTML() []byte {
 		}
 
 		function resetConfig() {
-			if (confirm('Reset configuration to defaults? This cannot be undone.')) {
-				location.reload();
+			if (confirm('Reset unsaved changes and reload last saved configuration?')) {
+				loadConfig();
+				document.getElementById('config-status').innerHTML = '<div class="status"><div class="status-dot"></div><span>Configuration reset to last saved state</span></div>';
+				setTimeout(() => {
+					document.getElementById('config-status').innerHTML = '';
+				}, 3000);
 			}
 		}
 
@@ -1770,8 +1799,48 @@ func getDashboardHTML() []byte {
 		}
 
 		async function editTool(name) {
-			if (!confirm('Edit tool "' + name + '"? (Not yet implemented)')) return;
-			// TODO: Implement tool editing
+			// Find tool in current list
+			const response = await fetch('/api/tools');
+			const data = await response.json();
+			const tool = data.tools.find(t => t.name === name);
+
+			if (!tool) {
+				alert('Tool not found');
+				return;
+			}
+
+			// Create edit form
+			const settingsStr = JSON.stringify(tool.settings || {});
+			const newPath = prompt('Edit path/socket for "' + name + '":', tool.path || '');
+
+			if (newPath === null) return; // User cancelled
+
+			if (!newPath.trim()) {
+				alert('Path cannot be empty');
+				return;
+			}
+
+			// Send update request
+			try {
+				const updateResponse = await fetch('/api/tools/' + name, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						path: newPath,
+						settings: tool.settings || {}
+					})
+				});
+
+				if (updateResponse.ok) {
+					loadTools();
+					alert('Tool "' + name + '" updated successfully');
+				} else {
+					const errData = await updateResponse.json();
+					alert('Failed to update tool: ' + (errData.error || 'Unknown error'));
+				}
+			} catch (err) {
+				alert('Error updating tool: ' + err.message);
+			}
 		}
 
 		async function deleteTool(name) {
