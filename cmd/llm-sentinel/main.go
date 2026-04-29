@@ -698,7 +698,7 @@ func runSessionStartup() {
 Once you've run operations in this project, patterns will be automatically generated.
 See CLAUDE.md for details on the execution feedback loop system.
 `
-		if err := os.WriteFile(patternsFile, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(patternsFile, []byte(content), 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Could not create patterns file: %v\n", err)
 		}
 		fmt.Println("✅ Session initialized (no operations logged yet)")
