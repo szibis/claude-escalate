@@ -613,6 +613,11 @@ func applyNewConfigDefaults(cfg *Config) {
 		cfg.Models.Opus.CostPer1KOutput = 0.075
 		cfg.Models.Opus.ContextWindow = 200000
 	}
+
+	// Apply Security defaults
+	if cfg.Security.RateLimiting.RequestsPerMinute <= 0 {
+		cfg.Security.RateLimiting.RequestsPerMinute = 1000
+	}
 }
 
 // Validate validates the configuration
