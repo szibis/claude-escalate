@@ -100,9 +100,12 @@ func TestSelector_Fuzz_WeightBoundaries(t *testing.T) {
 
 	for _, tc := range testCases {
 		sel.SetWeights(tc.customWeight, tc.builtinWeight)
-		// Verify weights were set or ignored
-		if tc.valid || tc.customWeight == sel.customToolWeight {
-			// Weights were set as expected
+		// Verify weights were set or ignored based on validity
+		if tc.valid {
+			// Valid weights should be applied
+			if tc.customWeight >= 0 && tc.customWeight <= 1.0 && sel.customToolWeight != tc.customWeight {
+				t.Errorf("Valid weight not applied: expected %f, got %f", tc.customWeight, sel.customToolWeight)
+			}
 		}
 	}
 }

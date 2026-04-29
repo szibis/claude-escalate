@@ -113,8 +113,8 @@ func TestInvocationRequest_Fuzz_ContextDeadlines(t *testing.T) {
 		}
 
 		// Should handle context without panicking
-		if request != nil && ctx != nil {
-			// Successfully created both
+		if request == nil || ctx == nil {
+			t.Errorf("Failed to create request or context in test case %s", tc.name)
 		}
 	}
 }
