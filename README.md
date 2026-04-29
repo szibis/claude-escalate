@@ -1,6 +1,10 @@
-# LLMSentinel v1.0.0
+# LLMSentinel - ⚠️ ALPHA / WORK IN PROGRESS
 
 > **Token optimization gateway for Claude API — 60-75% cost savings with Batch API, knowledge graphs, semantic caching, intelligent input compression, and visual tool management.**
+
+## 🔴 STATUS: NOT PRODUCTION READY
+
+**This project is in ALPHA and NOT suitable for production use.** See [PRODUCTION_STATUS.md](PRODUCTION_STATUS.md) for details on what's tested, what's not, and the production readiness checklist.
 
 [![Go](https://img.shields.io/badge/Go-1.26-blue)](https://golang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
