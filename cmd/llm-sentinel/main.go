@@ -1,11 +1,12 @@
-// claude-escalate is an intelligent model escalation system for Claude Code.
+// LLMSentinel is an intelligent model escalation and multi-provider orchestration system.
 //
-// It runs as a Claude Code UserPromptSubmit hook, analyzing each prompt to:
-//   - Detect when the current model is stuck (frustration signals, circular reasoning)
-//   - Suggest or perform model escalation (Haiku → Sonnet → Opus)
-//   - Auto-downgrade when problems are solved (Opus → Sonnet → Haiku)
-//   - Learn which task types need escalation and predict routing
-//   - Serve a local dashboard for analytics and monitoring
+// It supports multiple cloud AI CLIs (Claude, Copilot, Gemini, OpenAI) with:
+//   - Unified execution logging and analytics across all providers
+//   - Sentiment detection for intelligent escalation
+//   - Per-provider model escalation (Haiku → Sonnet → Opus, etc.)
+//   - Cross-provider fallback when budgets are hit
+//   - Real-time dashboard for monitoring and optimization
+//   - Pattern generation for continuous improvement
 package main
 
 import (
