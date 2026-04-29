@@ -69,6 +69,9 @@ func NewServer(
 	// WebSocket for real-time metrics
 	mux.HandleFunc("/api/metrics/stream", s.handleMetricsStream)
 
+	// Execution analytics
+	mux.HandleFunc("/api/analytics", s.handleExecutionAnalytics)
+
 	// Tool management endpoints (v0.7.0+) - more specific routes first
 	mux.HandleFunc("/api/tools/discover", s.handleToolsDiscover)
 	mux.HandleFunc("/api/tools/known", s.handleToolsKnown)
@@ -249,6 +252,82 @@ func (s *Server) handleMetricsStream(w http.ResponseWriter, r *http.Request) {
 		"message":  "WebSocket streaming not yet implemented, use /api/metrics with polling",
 		"interval": "1000ms (recommended)",
 	})
+}
+
+func (s *Server) handleExecutionAnalytics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Read execution log from project root
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = "."
+	}
+
+	// Try to find .execution-log.jsonl in project root
+	logFile := ".execution-log.jsonl"
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		// Fallback to home directory
+		logFile = filepath.Join(homeDir, ".claude/execution-logs/project_local.jsonl")
+	}
+
+	analytics := map[string]interface{}{
+		"session_metrics": map[string]interface{}{
+			"total_operations":  0,
+			"total_duration_ms": 0,
+			"total_tokens":      0,
+			"success_rate":      0.0,
+			"operations_by_type": map[string]int{},
+		},
+		"slowest_operations": []interface{}{},
+		"optimization_opportunities": []interface{}{},
+		"performance_trends": map[string]interface{}{},
+	}
+
+	// Parse execution log if it exists
+	if logData, err := os.ReadFile(logFile); err == nil {
+		lines := strings.Split(string(logData), "\n")
+		var entries []map[string]interface{}
+
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			var entry map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &entry); err == nil {
+				entries = append(entries, entry)
+			}
+		}
+
+		// Calculate metrics
+		if len(entries) > 0 {
+			sessionMetrics := analytics["session_metrics"].(map[string]interface{})
+			sessionMetrics["total_operations"] = len(entries)
+
+			opTypes := make(map[string]int)
+			totalDuration := 0
+			successCount := 0
+
+			for _, entry := range entries {
+				if opType, ok := entry["operation_type"].(string); ok {
+					opTypes[opType]++
+				}
+				if duration, ok := entry["duration_ms"].(float64); ok {
+					totalDuration += int(duration)
+				}
+				if status, ok := entry["status"].(string); ok && status == "success" {
+					successCount++
+				}
+			}
+
+			sessionMetrics["total_duration_ms"] = totalDuration
+			sessionMetrics["success_rate"] = float64(successCount) / float64(len(entries))
+			sessionMetrics["operations_by_type"] = opTypes
+
+			analytics["session_metrics"] = sessionMetrics
+		}
+	}
+
+	json.NewEncoder(w).Encode(analytics)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -1153,48 +1232,50 @@ func getDashboardHTML() []byte {
 		</div>
 
 		<div id="analytics" class="tab-content">
-			<h3>Your Analytics & Preferences</h3>
-			<p style="color: #666; margin: 15px 0;">Personalized insights based on your feedback and usage patterns</p>
+			<h3>Execution Analytics & Performance</h3>
+			<p style="color: #666; margin: 15px 0;">Real-time insights into Claude operations, performance metrics, and optimization opportunities</p>
+
 			<div class="grid">
 				<div class="metric-card">
-					<h3>Average Rating</h3>
-					<div><span class="value" id="analytics-rating">-</span><span class="unit">/5.0</span></div>
+					<h3>Total Operations</h3>
+					<div><span class="value" id="exec-total-ops">-</span></div>
 				</div>
 				<div class="metric-card">
-					<h3>Helpful Responses</h3>
-					<div><span class="value" id="analytics-helpful">-</span><span class="unit">%</span></div>
+					<h3>Total Duration</h3>
+					<div><span class="value" id="exec-total-duration">-</span><span class="unit">ms</span></div>
 				</div>
 				<div class="metric-card">
-					<h3>Accuracy</h3>
-					<div><span class="value" id="analytics-accuracy">-</span><span class="unit">%</span></div>
+					<h3>Success Rate</h3>
+					<div><span class="value" id="exec-success-rate">-</span><span class="unit">%</span></div>
 				</div>
 				<div class="metric-card">
-					<h3>Total Feedback</h3>
-					<div><span class="value" id="analytics-count">-</span></div>
+					<h3>Avg Duration</h3>
+					<div><span class="value" id="exec-avg-duration">-</span><span class="unit">ms</span></div>
 				</div>
 			</div>
+
 			<div style="padding: 20px; background: #f7f8fa; border-radius: 8px; margin-top: 20px;">
-				<h4 style="margin-bottom: 10px;">Your Preferences Learned:</h4>
-				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-					<div>
-						<label style="display: block; margin-bottom: 8px;">
-							<input type="checkbox" id="pref-freshness" disabled> Prefers fresh responses
-						</label>
-						<label style="display: block; margin-bottom: 8px;">
-							<input type="checkbox" id="pref-opus" disabled> Prefers detailed (Opus)
-						</label>
-					</div>
-					<div>
-						<label style="display: block; margin-bottom: 8px;">
-							<input type="checkbox" id="pref-brief" disabled> Prefers brief responses
-						</label>
-						<label style="display: block; margin-bottom: 8px;">
-							<input type="checkbox" id="pref-model" disabled> Preferred Model: <span id="pref-model-text">-</span>
-						</label>
-					</div>
+				<h4 style="margin-bottom: 10px;">Operations by Type:</h4>
+				<div id="exec-op-types" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;">
+					<!-- Populated by JavaScript -->
 				</div>
 			</div>
-			<button class="btn btn-primary" onclick="loadAnalytics()" style="margin-top: 20px;">Refresh Analytics</button>
+
+			<div style="padding: 20px; background: #fff8f0; border-radius: 8px; margin-top: 20px;">
+				<h4 style="margin-bottom: 10px; color: #d97706;">⚠️ Slowest Operations (Top 5):</h4>
+				<div id="exec-slowest" style="margin-top: 10px;">
+					<!-- Populated by JavaScript -->
+				</div>
+			</div>
+
+			<div style="padding: 20px; background: #f0fdf4; border-radius: 8px; margin-top: 20px;">
+				<h4 style="margin-bottom: 10px; color: #16a34a;">💡 Optimization Opportunities:</h4>
+				<div id="exec-opportunities" style="margin-top: 10px;">
+					<!-- Populated by JavaScript -->
+				</div>
+			</div>
+
+			<button class="btn btn-primary" onclick="loadExecutionAnalytics()" style="margin-top: 20px;">Refresh Execution Analytics</button>
 		</div>
 	</div>
 
@@ -1656,6 +1737,7 @@ func getDashboardHTML() []byte {
 			event.target.classList.add('active');
 			if (tabName === 'analytics') {
 				loadAnalytics();
+				loadExecutionAnalytics();
 			}
 		}
 
@@ -1738,6 +1820,61 @@ func getDashboardHTML() []byte {
 				document.getElementById('pref-model-text').textContent = data.preferred_model || 'none';
 			} catch (err) {
 				console.error('Error loading analytics:', err);
+			}
+		}
+
+		async function loadExecutionAnalytics() {
+			try {
+				const response = await fetch('/api/analytics');
+				const data = await response.json();
+				const sm = data.session_metrics || {};
+
+				// Update main metrics
+				document.getElementById('exec-total-ops').textContent = sm.total_operations || '0';
+				document.getElementById('exec-total-duration').textContent = (sm.total_duration_ms || 0).toLocaleString();
+				document.getElementById('exec-success-rate').textContent = ((sm.success_rate || 0) * 100).toFixed(1);
+				document.getElementById('exec-avg-duration').textContent = sm.total_operations > 0
+					? Math.round((sm.total_duration_ms || 0) / sm.total_operations)
+					: '-';
+
+				// Display operation types
+				const opTypes = sm.operations_by_type || {};
+				const opTypesDiv = document.getElementById('exec-op-types');
+				opTypesDiv.innerHTML = Object.entries(opTypes)
+					.map(([type, count]) => '<div style="padding: 8px; background: white; border-radius: 4px; border-left: 3px solid #3b82f6;"><strong>' + type + '</strong>: ' + count + '</div>')
+					.join('');
+
+				// Display slowest operations
+				const slowest = data.slowest_operations || [];
+				const slowestDiv = document.getElementById('exec-slowest');
+				if (slowest.length === 0) {
+					slowestDiv.innerHTML = '<p style="color: #999; font-size: 14px;">No operations logged yet</p>';
+				} else {
+					slowestDiv.innerHTML = slowest.slice(0, 5).map(op =>
+						'<div style="padding: 10px; margin-bottom: 8px; background: white; border-radius: 4px; border-left: 3px solid #f97316;">' +
+						'<div style="font-family: monospace; font-size: 12px; margin-bottom: 4px;">' + escapeHtml(op.operation.substring(0, 60)) + '</div>' +
+						'<div style="font-size: 13px; color: #666;">Avg: ' + op.avg_duration_ms + 'ms | Executions: ' + op.executions + '</div>' +
+						'</div>'
+					).join('');
+				}
+
+				// Display opportunities
+				const opportunities = data.optimization_opportunities || [];
+				const oppDiv = document.getElementById('exec-opportunities');
+				if (opportunities.length === 0) {
+					oppDiv.innerHTML = '<p style="color: #999; font-size: 14px;">No optimization opportunities identified</p>';
+				} else {
+					oppDiv.innerHTML = opportunities.slice(0, 5).map(opp =>
+						'<div style="padding: 10px; margin-bottom: 8px; background: white; border-radius: 4px; border-left: 3px solid #16a34a;">' +
+						'<div style="font-size: 14px;"><strong>' + opp.type.replace('_', ' ').toUpperCase() + '</strong></div>' +
+						'<div style="font-size: 13px; color: #666; margin-top: 4px;">' + escapeHtml(opp.suggestion) + '</div>' +
+						'</div>'
+					).join('');
+				}
+			} catch (err) {
+				console.error('Error loading execution analytics:', err);
+				document.getElementById('exec-total-ops').textContent = '-';
+				document.getElementById('exec-total-duration').textContent = '-';
 			}
 		}
 
