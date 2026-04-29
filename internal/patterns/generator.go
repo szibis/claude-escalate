@@ -38,11 +38,11 @@ func (g *Generator) Generate() string {
 		md += fmt.Sprintf("✅ **%s** — %dms avg (ran %dx)\n", truncate(op.Operation, 60), op.AvgDurationMS, op.ExecutionCount)
 	}
 
-	md += fmt.Sprintf(`
+	md += `
 ## Slow Operations (> 2s)
 ⚠️ These operations take significant time. Consider optimization or caching.
 
-`)
+`
 
 	for _, op := range stats {
 		savings := op.TotalTimeMS - op.AvgDurationMS
@@ -54,10 +54,10 @@ func (g *Generator) Generate() string {
 `, truncate(op.Operation, 60), op.AvgDurationMS, op.TotalTimeMS, op.ExecutionCount, savings)
 	}
 
-	md += fmt.Sprintf(`## Caching Opportunities
+	md += `## Caching Opportunities
 💾 Commands that repeated 3+ times (prime candidates for caching)
 
-`)
+`
 
 	for _, opp := range caching {
 		md += fmt.Sprintf(`💾 **%s**
@@ -121,7 +121,7 @@ func (g *Generator) Generate() string {
 // WriteFile writes the generated patterns to a file
 func (g *Generator) WriteFile(filename string) error {
 	content := g.Generate()
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(filename, []byte(content), 0600)
 }
 
 // truncate limits string to max length
