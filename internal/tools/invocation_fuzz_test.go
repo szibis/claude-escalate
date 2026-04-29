@@ -25,9 +25,9 @@ func TestInvocationRequest_Fuzz_TokenBudgetBoundaries(t *testing.T) {
 			MaxResults:  10,
 		}
 
-		// Request should be valid regardless of budget
-		if request == nil {
-			t.Error("Request creation failed")
+		// Verify request structure is preserved
+		if request.Intent != "test_intent" || request.TokenBudget != budget {
+			t.Errorf("Request fields not preserved: budget=%d", budget)
 		}
 	}
 }
@@ -51,8 +51,8 @@ func TestInvocationRequest_Fuzz_MaxResultsBoundaries(t *testing.T) {
 			TokenBudget: 3000,
 		}
 
-		if request == nil {
-			t.Error("Request creation failed")
+		if request.MaxResults != maxResults {
+			t.Errorf("MaxResults not preserved: got %d, want %d", request.MaxResults, maxResults)
 		}
 	}
 }
@@ -82,8 +82,8 @@ func TestInvocationRequest_Fuzz_SpecialIntentNames(t *testing.T) {
 			MaxResults:  10,
 		}
 
-		if request == nil {
-			t.Error("Request creation failed")
+		if request.Intent != intent {
+			t.Errorf("Intent not preserved: got %q, want %q", request.Intent, intent)
 		}
 	}
 }
@@ -97,7 +97,7 @@ func TestInvocationRequest_Fuzz_ContextDeadlines(t *testing.T) {
 		{"background", func() context.Context {
 			return context.Background()
 		}},
-		{"cancelled context", func() context.Context {
+		{"canceled context", func() context.Context {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			return ctx
@@ -113,8 +113,8 @@ func TestInvocationRequest_Fuzz_ContextDeadlines(t *testing.T) {
 		}
 
 		// Should handle context without panicking
-		if request == nil || ctx == nil {
-			t.Errorf("Failed to create request or context in test case %s", tc.name)
+		if ctx == nil || request.Intent != "test_intent" {
+			t.Errorf("Failed in test case %s", tc.name)
 		}
 	}
 }
@@ -122,13 +122,14 @@ func TestInvocationRequest_Fuzz_ContextDeadlines(t *testing.T) {
 // TestInvocationRequest_Fuzz_LargePayloads tests with large request payload
 func TestInvocationRequest_Fuzz_LargePayloads(t *testing.T) {
 	// Very long intent name
+	longIntent := strings.Repeat("intent", 10000)
 	request := &InvocationRequest{
-		Intent:      strings.Repeat("intent", 10000),
+		Intent:      longIntent,
 		TokenBudget: 3000,
 		MaxResults:  10,
 	}
 
-	if request == nil {
+	if request.Intent != longIntent {
 		t.Error("Request creation with large intent failed")
 	}
 
@@ -159,8 +160,8 @@ func TestInvocationRequest_Fuzz_BoundaryValues(t *testing.T) {
 			MaxResults:  tc.maxResults,
 		}
 
-		if request == nil {
-			t.Errorf("Failed to create request with intent=%q, budget=%d, max=%d",
+		if request.Intent != tc.intent || request.TokenBudget != tc.tokenBudget || request.MaxResults != tc.maxResults {
+			t.Errorf("Request fields not preserved with intent=%q, budget=%d, max=%d",
 				tc.intent, tc.tokenBudget, tc.maxResults)
 		}
 	}
@@ -184,10 +185,6 @@ func TestInvocationRequest_Fuzz_UnicodeContent(t *testing.T) {
 			Intent:      intent,
 			TokenBudget: 3000,
 			MaxResults:  10,
-		}
-
-		if request == nil {
-			t.Errorf("Failed to create request with unicode intent: %s", intent)
 		}
 
 		// Verify intent is preserved

@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 )
@@ -77,7 +76,7 @@ func TestErrorHandler_Fuzz_AllToolNames(t *testing.T) {
 		"tool with spaces",
 		"\ttabbed_tool",
 		"tool_\x00_null",
-		fmt.Sprintf("%s", "tool_" + fmt.Sprintf("%d", 999999)),
+		"tool_" + fmt.Sprintf("%d", 999999),
 	}
 
 	for _, name := range toolNames {
@@ -134,16 +133,16 @@ func TestErrorHandler_Fuzz_RetryCountTracking(t *testing.T) {
 func TestErrorHandler_Fuzz_ErrorTypes(t *testing.T) {
 	handler := NewErrorHandler(ErrorPolicy{LogAllErrors: true})
 
-	errors := []error{
+	errs := []error{
 		nil,
 		fmt.Errorf(""),
 		fmt.Errorf("simple error"),
 		fmt.Errorf("error with newline\n"),
 		fmt.Errorf("error with %s", "formatting"),
-		errors.New(fmt.Sprintf("%1000s", "very long error")),
+		fmt.Errorf("%1000s", "very long error"),
 	}
 
-	for _, err := range errors {
+	for _, err := range errs {
 		retryCount := 0
 		_ = handler.Handle("tool", ErrorTimeout, err, &retryCount)
 	}

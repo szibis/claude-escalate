@@ -22,6 +22,7 @@ func TestToolRegistry_Fuzz_StoragePathEdgeCases(t *testing.T) {
 		reg := NewToolRegistry(path)
 		if reg == nil {
 			t.Errorf("Failed to create ToolRegistry with path: %q", path)
+			continue
 		}
 
 		// Verify path is stored
@@ -148,6 +149,7 @@ func TestToolRegistry_Fuzz_UnicodeConfigPath(t *testing.T) {
 		reg := NewToolRegistry(path)
 		if reg == nil {
 			t.Errorf("Failed to create registry with path: %q", path)
+			continue
 		}
 
 		// Verify path preserved with unicode intact
