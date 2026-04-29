@@ -128,13 +128,12 @@ func (s *Selector) SelectByWeight(tools []string, weights map[string]float64) st
 
 	if totalWeight == 0 {
 		// Fallback to random selection
-		// nolint:gosec // G404 suppressed: non-cryptographic use case
+		//nolint:gosec // G404 suppressed: non-cryptographic use case
 		return tools[rand.IntN(len(tools))]
 	}
 
 	// Weighted random selection
-	//nolint:gosec
-	r := rand.Float64() * totalWeight
+	r := rand.Float64() * totalWeight //nolint:gosec
 	current := 0.0
 	for _, tool := range tools {
 		weight := weights[tool]
