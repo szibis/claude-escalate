@@ -22,7 +22,7 @@ func TempDir(t *testing.T) string {
 		t.Fatalf("failed to create temp directory: %v", err)
 	}
 	t.Cleanup(func() {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir) // nolint:gosec // G104: cleanup operation in test
 	})
 	return dir
 }
@@ -57,9 +57,9 @@ func EnvVar(t *testing.T, key, value string) string {
 	}
 	t.Cleanup(func() {
 		if old == "" {
-			os.Unsetenv(key)
+			_ = os.Unsetenv(key) // nolint:gosec // G104: cleanup operation in test
 		} else {
-			os.Setenv(key, old)
+			_ = os.Setenv(key, old) // nolint:gosec // G104: cleanup operation in test
 		}
 	})
 	return old

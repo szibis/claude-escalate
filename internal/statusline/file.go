@@ -86,7 +86,7 @@ func NewFileSource(path string) *FileSource {
 	file, err := os.Open(validatedPath)
 	enabled := err == nil
 	if file != nil {
-		file.Close()
+		_ = file.Close() // nolint:gosec // G104: close on check operation
 	}
 
 	return &FileSource{
