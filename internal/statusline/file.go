@@ -82,6 +82,7 @@ func NewFileSource(path string) *FileSource {
 	}
 
 	// Check if file exists (without separate Stat call to avoid TOCTOU)
+	// nolint:gosec // G304: path is validated (see validatedPath variable)
 	file, err := os.Open(validatedPath)
 	enabled := err == nil
 	if file != nil {
