@@ -119,12 +119,21 @@ func (s *Server) Start() error {
 
 	// Admin/observability endpoints
 	mux.HandleFunc("/health", s.handleHealth)
-	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/metrics", s.authMiddleware(s.handleMetrics))
 	mux.HandleFunc("/admin/usage", s.authMiddleware(s.handleUsage))
+
+	// Wrap mux with security headers middleware
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		mux.ServeHTTP(w, r)
+	})
 
 	server := &http.Server{
 		Addr:           s.listenAddr,
-		Handler:        mux,
+		Handler:        handler,
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
 		MaxHeaderBytes: 1 << 20,
@@ -160,7 +169,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
