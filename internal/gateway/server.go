@@ -2,14 +2,54 @@ package gateway
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/szibis/claude-escalate/internal/models"
 )
+
+// Embed the web UI static files
+//go:embed static
+var webUIFiles embed.FS
+
+// Debug function to list embedded files
+func listEmbeddedFiles() {
+	fmt.Println("DEBUG: Checking embedded files in webUIFiles...")
+	walkEmbedFS(webUIFiles, ".", 0)
+}
+
+func walkEmbedFS(fsys embed.FS, dir string, depth int) {
+	entries, err := fsys.ReadDir(dir)
+	if err != nil {
+		fmt.Printf("%*sError reading %s: %v\n", depth*2, "", dir, err)
+		return
+	}
+
+	if len(entries) == 0 {
+		fmt.Printf("%*s(empty)\n", depth*2, "")
+		return
+	}
+
+	for _, entry := range entries {
+		path := dir + "/" + entry.Name()
+		if dir == "." {
+			path = entry.Name()
+		}
+
+		if entry.IsDir() {
+			fmt.Printf("%*s[DIR] %s\n", depth*2, "", path)
+			walkEmbedFS(fsys, path, depth+1)
+		} else {
+			fmt.Printf("%*s[FILE] %s\n", depth*2, "", path)
+		}
+	}
+}
 
 // RequestMetrics tracks API usage for observability
 type RequestMetrics struct {
@@ -47,6 +87,7 @@ type Server struct {
 	metrics       *RequestMetrics
 	listenAddr    string
 	apiKey        string
+	wsMetrics     *WebSocketMetrics
 }
 
 // NewServer creates a new gateway server
@@ -59,6 +100,7 @@ func NewServer(unifiedClient *models.UnifiedClient, registry *models.ModelRegist
 			ByModel:    make(map[string]*ModelMetrics),
 			ByProvider: make(map[string]*ProviderMetrics),
 		},
+		wsMetrics: NewWebSocketMetrics(),
 	}
 }
 
@@ -111,6 +153,9 @@ type ModelListResponse struct {
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
+	// Debug: list embedded files
+	listEmbeddedFiles()
+
 	mux := http.NewServeMux()
 
 	// OpenAI-compatible endpoints
@@ -121,6 +166,82 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/metrics", s.authMiddleware(s.handleMetrics))
 	mux.HandleFunc("/admin/usage", s.authMiddleware(s.handleUsage))
+
+	// Web UI API endpoints (new)
+	mux.HandleFunc("/api/config", s.handleAPIConfig)
+	mux.HandleFunc("/api/status", s.handleAPIStatus)
+	mux.HandleFunc("/api/optimizations", s.handleAPIOptimizations)
+	mux.HandleFunc("/api/optimizations/{name}/toggle", s.handleAPIOptimizationToggle)
+	mux.HandleFunc("/api/cache/{action}", s.handleAPICacheControl)
+	mux.HandleFunc("/api/metrics", s.handleAPIMetrics)
+	mux.HandleFunc("/api/metrics/stream", s.wsMetrics.HandleWebSocket)
+
+	// Serve web UI (embedded files) - catch-all routes after API routes
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Skip if trying to access known API endpoints
+		if strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/v1/") ||
+			r.URL.Path == "/health" ||
+			r.URL.Path == "/metrics" ||
+			r.URL.Path == "/admin/usage" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Try to serve the requested file from embedded FS
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" || path == "dashboard" {
+			path = "index.html"
+		}
+
+		// Embedded files are under "static/" prefix
+		fullPath := "static/" + path
+
+		file, err := webUIFiles.Open(fullPath)
+		if err == nil {
+			defer file.Close()
+
+			// Determine content type and serve
+			contentType := "application/octet-stream"
+			switch {
+			case strings.HasSuffix(path, ".html"):
+				contentType = "text/html; charset=utf-8"
+			case strings.HasSuffix(path, ".css"):
+				contentType = "text/css"
+			case strings.HasSuffix(path, ".js"):
+				contentType = "application/javascript"
+			case strings.HasSuffix(path, ".json"):
+				contentType = "application/json"
+			case strings.HasSuffix(path, ".svg"):
+				contentType = "image/svg+xml"
+			case strings.HasSuffix(path, ".png"):
+				contentType = "image/png"
+			case strings.HasSuffix(path, ".jpg"), strings.HasSuffix(path, ".jpeg"):
+				contentType = "image/jpeg"
+			}
+
+			w.Header().Set("Content-Type", contentType)
+			if strings.HasSuffix(path, ".html") {
+				w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+			} else {
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+			}
+			io.Copy(w, file)
+			return
+		}
+
+		// File not found, serve index.html for SPA routing
+		indexFile, err := webUIFiles.Open("static/index.html")
+		if err == nil {
+			defer indexFile.Close()
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+			io.Copy(w, indexFile)
+			return
+		}
+
+		http.NotFound(w, r)
+	})
 
 	// Wrap mux with security headers middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
