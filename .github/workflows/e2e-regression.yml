@@ -16,6 +16,10 @@ jobs:
     services:
       postgres:
         image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: escalate_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
