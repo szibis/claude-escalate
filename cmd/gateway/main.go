@@ -194,6 +194,5 @@ Testing the Gateway:
   curl http://localhost:8080/health
 
   # Metrics
-  curl http://localhost:8080/metrics
-`)
+  curl http://localhost:8080/metrics`)
 }

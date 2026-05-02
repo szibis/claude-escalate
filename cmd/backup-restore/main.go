@@ -273,6 +273,5 @@ Examples:
   ./backup-restore restore ./backups/db-backup.tar.gz ./data-restored
 
   # Verify backup
-  ./backup-restore verify ./backups/db-20260430-140000.tar.gz
-`)
+  ./backup-restore verify ./backups/db-20260430-140000.tar.gz`)
 }
